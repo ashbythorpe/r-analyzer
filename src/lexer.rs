@@ -4,26 +4,10 @@ use crate::grammar::{Token, TokenType, NA};
 
 use crate::peeking_chars::CharTraverser;
 
-fn parse_number(input: &mut CharTraverser, starting_dot: bool) {
-    let mut seen_dot = starting_dot;
-
-    input.next_while(|x| {
-        if x == '.' {
-            if seen_dot {
-                panic!("Must be a number");
-            }
-            seen_dot = true;
-            return true;
-        }
-
-        x.is_ascii_digit()
-    });
+fn parse_number(input: &mut CharTraverser) {
+    input.next_while(|x| x.is_ascii_digit() || x == '.');
 
     if input.next_if(|x| x == 'x' || x == 'X').is_some() {
-        let current = input.stored_string();
-        if current.len() != 2 || !current.starts_with('0') {
-            panic!("Must be a number");
-        }
         parse_hex(input);
     } else if input.next_if(|x| x == 'e' || x == 'E').is_some() {
         parse_exp(input);
@@ -33,23 +17,7 @@ fn parse_number(input: &mut CharTraverser, starting_dot: bool) {
 }
 
 fn parse_hex(input: &mut CharTraverser) {
-    let mut seen_dot = false;
-
-    input.next_while(|x| {
-        if x == '.' {
-            if seen_dot {
-                panic!("Must be a number");
-            }
-            seen_dot = true;
-            return true;
-        }
-
-        x.is_ascii_hexdigit()
-    });
-
-    if input.stored_string().len() == 2 {
-        panic!("Must be a number");
-    }
+    input.next_while(|x| x.is_ascii_hexdigit() || x == '.');
 
     if input.next_if(|x| x == 'p' || x == 'P').is_some() {
         parse_exp(input);
@@ -93,51 +61,6 @@ fn parse_raw_string(input: &mut CharTraverser, quote: char) {
 }
 
 fn parse_string_value(input: &mut CharTraverser, quote: char) {
-    // while let Some(&x) = input.peek() {
-    //     if input.push_if(&mut text, |x| *x == quote) {
-    //         break;
-    //     } else if input.push_if(&mut text, |x| *x == '\n') {
-    //         //
-    //     } else if x == '\\' {
-    //         let next = match input.peek() {
-    //             Some(&x) => x,
-    //             _ => panic!("Must be a char"),
-    //         };
-    //
-    //         if next.is_digit(8) {
-    //             // TODO: Handle octal
-    //         } else if next == 'x' {
-    //             // TODO: Handle hex
-    //         } else if next == 'u' {
-    //             // TODO: Handle unicode
-    //         } else if next == 'U' {
-    //             // TODO: Handle unicode again
-    //         } else {
-    //             let char = match next {
-    //                 'a' => '\x07',
-    //                 'b' => '\x08',
-    //                 'f' => '\x0C',
-    //                 'n' => '\n',
-    //                 'r' => '\r',
-    //                 't' => '\t',
-    //                 'v' => '\x0B',
-    //                 '\\' => '\\',
-    //                 '\"' => '\"',
-    //                 '\'' => '\'',
-    //                 '`' => '`',
-    //                 ' ' => ' ',
-    //                 '\n' => '\n',
-    //                 _ => panic!("Unrecognized escape sequence"),
-    //             };
-    //
-    //             text.push(char);
-    //             input.next();
-    //         }
-    //     } else {
-    //         input.take_and_push(&mut text);
-    //     }
-    // }
-
     while let Some(x) = input.next() {
         if x == quote {
             break;
@@ -244,7 +167,7 @@ fn get_token(input: &mut CharTraverser) -> Option<Token> {
         }
         '.' => {
             if input.next_if(|x| x.is_ascii_digit()).is_some() {
-                parse_number(input, true);
+                parse_number(input);
                 TokenType::Number
             } else {
                 parse_symbol_value(input);
@@ -252,7 +175,7 @@ fn get_token(input: &mut CharTraverser) -> Option<Token> {
             }
         }
         x if x.is_ascii_digit() => {
-            parse_number(input, false);
+            parse_number(input);
             TokenType::Number
         }
         '"' | '\'' => {
