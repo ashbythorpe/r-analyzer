@@ -1,0 +1,1564 @@
+    Blocking waiting for file lock on package cache
+   Compiling parser v0.1.0 (/home/ashbythorpe/parser)
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/aaa_env.R`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/children.R`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.40s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/conditions.R`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/api.R`
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.40s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/default_objects.R`
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/collections.R`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/actions.R`
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/cache.R`
+    Blocking waiting for file lock on package cache
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/docs.R`
+    Blocking waiting for file lock on package cache
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/elem_filter.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/elem_flatten.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/equal.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/eval_conditions.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/empty_selenider_elements.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/expect_all.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/expect.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/find_actual_element.R`
+    Blocking waiting for file lock on package cache
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/find_browser_and_version.R`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/find_element.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/find_elements.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/get_actual_element.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/format.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/global_actions.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/import-standalone-obj-type.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/import-standalone-types-check.R`
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/js.R`
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/keys.R`
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/minimal_selenider_session.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/lazy_list.R`
+    Blocking waiting for file lock on package cache
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/pretty_dt.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/print_lazy.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/print.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/properties.R`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/selector.R`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/retry_with_timeout.R`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/rvest.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/selenider-package.R`
+    Blocking waiting for file lock on package cache
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/session-options.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/session.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/sysdata.rda`
+thread 'main' panicked at src/main.rs:17:42:
+called `Result::unwrap()` on an `Err` value: Error { kind: InvalidData, message: "stream did not contain valid UTF-8" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/testthat.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/utils-chromote.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/utils-checks.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/utils-errors.R`
+warning: field `newlines` is never read
+ --> src/file.rs:3:5
+  |
+1 | pub struct SourceFile {
+  |            ---------- field in this struct
+2 |     content: String,
+3 |     newlines: Vec<usize>,
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+ --> src/file.rs:7:8
+  |
+6 | impl SourceFile {
+  | --------------- associated function in this implementation
+7 |     fn new(content: String) -> SourceFile {
+  |        ^^^
+
+warning: function `newlines_cumsum` is never used
+  --> src/file.rs:17:4
+   |
+17 | fn newlines_cumsum(content: &str) -> Vec<usize> {
+   |    ^^^^^^^^^^^^^^^
+
+warning: struct `Function` is never constructed
+ --> src/syntax.rs:1:8
+  |
+1 | struct Function {}
+  |        ^^^^^^^^
+
+warning: `parser` (bin "parser") generated 4 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/parser /home/ashbythorpe/selenider/R/utils.R`
