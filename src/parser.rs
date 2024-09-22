@@ -9,32 +9,39 @@ use crate::nodes::{self, Node, NodeType};
 
 type Tokens<'a> = Peekable<Enumerate<Iter<'a, Token>>>;
 
-#[derive(PartialEq, Eq, Clone)]
-enum ClosingDelim {
-    Paren,
-    Square,
-    Curly,
-    Else,
-    Comma,
-    In,
+/// Errors that occur during parsing. `span` refers to the set of tokens that caused the error. If
+/// it is `None`, then the error is at the end of the input (i.e. an unclosed delimiter).
+pub struct ParseError {
+    message: &'static str,
+    span: Option<Span>,
 }
 
-impl ClosingDelim {
-    fn closes(token_type: &TokenType) -> Option<Self> {
-        match *token_type {
-            TokenType::RightParen => Some(ClosingDelim::Paren),
-            TokenType::RightSquare => Some(ClosingDelim::Square),
-            TokenType::RightCurly => Some(ClosingDelim::Curly),
-            TokenType::Else => Some(ClosingDelim::Else),
-            TokenType::Comma => Some(ClosingDelim::Comma),
-            TokenType::In => Some(ClosingDelim::In),
-            _ => None,
+impl ParseError {
+    pub fn new(message: &'static str, span: Option<Span>) -> Self {
+        Self { message, span }
+    }
+
+    pub fn single(message: &'static str, span: usize) -> Self {
+        Self {
+            message,
+            span: Some(Span::single(span)),
+        }
+    }
+
+    pub fn at_end(message: &'static str) -> Self {
+        Self {
+            message,
+            span: None,
         }
     }
 }
 
 pub fn lex_and_parse(input: &str) -> Vec<Node> {
-    let tokens = lex(input);
+    let (tokens, errors) = lex(input);
+
+    for error in errors {
+        println!("{}: {}", error.index, error.message);
+    }
 
     // let start = 600;
     // for (i, token) in tokens[start..start + 100].iter().enumerate() {
@@ -43,38 +50,61 @@ pub fn lex_and_parse(input: &str) -> Vec<Node> {
 
     let mut tokens_iter = tokens.iter().enumerate().peekable();
 
-    let parsed = parse(&mut tokens_iter);
+    let (parsed, errors) = parse(&mut tokens_iter);
 
-    for node in &parsed {
-        println!("{}", node);
+    if errors.is_empty() {
+        // for node in &parsed {
+        //     println!("{}", node);
+        // }
+    } else {
+        for error in errors {
+            match error.span {
+                Some(x) => {
+                    println!("({}, {}): {}", x.start(), x.end(), error.message);
+                }
+                None => {
+                    println!("{}", error.message);
+                }
+            }
+        }
     }
 
     parsed
 }
 
-pub fn parse(tokens: &mut Tokens) -> Vec<Node> {
+/// Given a list of tokens produced by lexing, parse them into a syntax tree.
+///
+/// The parser is a hand written Pratt parser, based on the grammar defined in the [source code of
+/// R](https://github.com/wch/r-source/blob/trunk/src/main/gram.y).
+///
+/// This function parses the `prog` item of the grammar, defined as:
+///
+/// END_OF_INPUT | '\n' | expr_or_assign_or_help '\n' | expr_or_assign_or_help ';' | error
+pub fn parse(tokens: &mut Tokens) -> (Vec<Node>, Vec<ParseError>) {
     let mut exprs = Vec::new();
+    let mut errors = Vec::new();
 
     while peek_token(tokens, true).is_some() {
-        exprs.push(parse_expr(tokens, 0, false, true, true, &[]));
+        exprs.push(parse_expr(tokens, &mut errors, 0, false, true, true, &[]));
 
-        match peek_delims(
+        // Works since this does not produce an error if there is no next token
+        peek_delims(
             tokens,
+            &mut errors,
             &[TokenType::NewLine, TokenType::SemiColon],
             &[],
             false,
-        ) {
-            Some((_, TokenType::NewLine | TokenType::SemiColon)) => {}
-            Some(_) => panic!("Unexpected token"),
-            _ => {}
-        };
+            false,
+            "Expected a newline or ';'",
+        );
 
         next_token(tokens, false);
     }
 
-    exprs
+    (exprs, errors)
 }
 
+/// Get the next token, skipping whitespace. If `eat_lines` is true, then skip newlines as well.
 fn next_token<'a>(tokens: &'a mut Tokens, eat_lines: bool) -> Option<(usize, &'a Token)> {
     skip_whitespace(tokens, eat_lines);
     tokens.next()
@@ -86,18 +116,51 @@ fn peek_token<'a>(tokens: &'a mut Tokens, eat_lines: bool) -> Option<(usize, &'a
 }
 
 // expr_or_assign_or_help, expr_or_help, expr
+/// The heart of the parser. Parses any non-empty expression. R programs are made up of
+/// expressions, so the parsing process involves repeatedly calling this function.
+///
+/// Parses the following nodes: `expr_or_assign_or_help`, `expr_or_help`, `expr`, defined as:
+///
+/// expr_or_assign_or_help :
+///     expr
+///     | expr_or_assign_or_help EQ_ASSIGN expr_or_assign_or_help
+///     | expr_or_assign_or_help '?' expr_or_assign_or_help
+///
+/// expr_or_help :
+///     expr | expr_or_help '?' expr_or_help
+///
+/// expr: NUM_CONST
+///     | STR_CONST
+///     | NULL_CONST
+///     | PLACEHOLDER
+///     | SYMBOL
+///     ...
+///     | NEXT
+///     | BREAK
+///
+/// `min_binding_power` is used in [parse_infix()]
+///
+/// `eat_lines` controls whether newlines can be skipped.
+///
+/// `eq_assign` defines whether `=` is allowed to be used as an assignment operator.
+///
+/// `binary_help` defines whether `?` is allowed to be used as a binary operator (e.g.
+/// `package?utils`).
+///
+/// `context` stores the delimiters that can close parent nodes of the tree.
 fn parse_expr(
     tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
     min_binding_power: u8,
     eat_lines: bool,
     eq_assign: bool,
     binary_help: bool,
-    context: &[ClosingDelim],
+    context: &[TokenType],
 ) -> Node {
     let (start, token) = match peek_token(tokens, true) {
         Some(x) => x,
         None => {
-            panic!("Unexpected end of input");
+            errors.push(ParseError::at_end("Expected expression"));
             return Node::empty(NodeType::Expr);
         }
     };
@@ -118,46 +181,64 @@ fn parse_expr(
             | TokenType::While
             | TokenType::Repeat
     ) {
-        if is_closing(token.token_type(), eat_lines, context) {
+        if is_closing(token.token_type(), context) {
             // step out - let the token close what it closes
-            println!("Unexpected symbol: {:?}", (start, token.token_type()));
-            todo!()
-        } else if is_potentially_closing(token.token_type()) {
-            // ignore the token
-            todo!()
+            errors.push(ParseError::single("Expected expression", start));
+            return Node::empty(NodeType::Expr);
         } else if infix_binding_power(token.token_type()).is_some() {
-            // Add an error token here, then parse the infix expression
-            println!("Unexpected symbol: {:?}", (start, token.token_type()));
-            todo!()
+            // Parse the infix expression, using an empty node as the lhs
+            errors.push(ParseError::single("Expected expression", start));
+
+            let lhs = Node::empty(NodeType::Expr);
+            return parse_infix(
+                tokens,
+                errors,
+                lhs,
+                start,
+                min_binding_power,
+                eat_lines,
+                binary_help,
+                eq_assign,
+                context,
+            );
         } else {
-            panic!("Unexpected symbol: {:?}", (start, token.token_type()))
+            // Skip the token
+            errors.push(ParseError::single("Unexpected token", start));
+            next_token(tokens, true);
+
+            return parse_expr(
+                tokens,
+                errors,
+                min_binding_power,
+                eat_lines,
+                eq_assign,
+                binary_help,
+                context,
+            );
         }
     }
 
     let (start, token) = next_token(tokens, eat_lines).unwrap();
 
-    println!("{}, {:?}", start, token);
-
-    let mut lhs = match token_type {
+    let lhs = match token_type {
         // NUM_CONST, STR_CONST, NULL_CONST, PLACEHOLDER, SYMBOL,
         atoms!() => Node::ok(
             nodes::atom(token).expect("Node must be an atom"),
             Span::single(start),
             Vec::new(),
         ),
-        // ( '-' | '+' | '!' | '~' ) expr
-        // '?' expr_or_assign_or_help
         prefix_operators!() | TokenType::Help => {
-            parse_prefix(tokens, context, &token_type, start, eat_lines)
+            parse_prefix(tokens, errors, context, &token_type, start, eat_lines)
         }
         // '{' exprlist '}'
-        TokenType::LeftCurly => parse_braces(tokens, context, start),
+        TokenType::LeftCurly => parse_braces(tokens, errors, context, start),
         // '(' expr_or_assign_or_help ')'
-        TokenType::LeftParen => parse_brackets(tokens, context, start),
+        TokenType::LeftParen => parse_brackets(tokens, errors, context, start),
         // FUNCTION '(' formlist ')' cr expr_or_assign_or_help %prec LOW
         // '\\' '(' formlist ')' cr expr_or_assign_or_help %prec LOW
         TokenType::Function | TokenType::BackSlash => parse_function(
             tokens,
+            errors,
             context,
             start,
             eat_lines,
@@ -165,18 +246,51 @@ fn parse_expr(
         ),
         // IF ifcond expr_or_assign_or_help
         // IF ifcond expr_or_assign_or_help ELSE expr_or_assign_or_help
-        TokenType::If => parse_if_statement(tokens, context, start, eat_lines),
+        TokenType::If => parse_if_statement(tokens, errors, context, start, eat_lines),
         // FOR forcond expr_or_assign_or_help %prec FOR
-        TokenType::For => parse_for_statement(tokens, context, start, eat_lines),
+        TokenType::For => parse_for_statement(tokens, errors, context, start, eat_lines),
         // WHILE cond expr_or_assign_or_help
-        TokenType::While => parse_while_statement(tokens, context, start, eat_lines),
+        TokenType::While => parse_while_statement(tokens, errors, context, start, eat_lines),
         // REPEAT expr_or_assign_or_help
-        TokenType::Repeat => parse_repeat_statement(tokens, context, start, eat_lines),
+        TokenType::Repeat => parse_repeat_statement(tokens, errors, context, start, eat_lines),
         _ => {
             panic!("Unexpected symbol: {:?}", (start, token.token_type()))
         }
     };
 
+    parse_infix(
+        tokens,
+        errors,
+        lhs,
+        start,
+        min_binding_power,
+        eat_lines,
+        binary_help,
+        eq_assign,
+        context,
+    )
+}
+
+/// Given a parsed expression, parse any infix expressions following it.
+///
+/// `min_binding_power` is the binding power of the infix or prefix operator that
+/// precedes the expression currently being parsed (see [prefix_binding_power()]
+/// and [infix_binding_power()]. If there is no such operator, then this is 0.
+///
+/// The function repeatedly parses infix operators until it encounters the end
+/// of the expression or another operator with a lower binding power.
+#[allow(clippy::too_many_arguments)]
+fn parse_infix(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    mut lhs: Node,
+    start: usize,
+    min_binding_power: u8,
+    eat_lines: bool,
+    binary_help: bool,
+    eq_assign: bool,
+    context: &[TokenType],
+) -> Node {
     loop {
         let (_, op) = match peek_token(tokens, eat_lines) {
             None => break,
@@ -198,14 +312,21 @@ fn parse_expr(
 
             lhs = match *op.token_type() {
                 // expr '(' sublist ')'
-                TokenType::LeftParen => parse_call(tokens, context, lhs, false, start, op_index),
+                TokenType::LeftParen => {
+                    parse_call(tokens, errors, context, lhs, false, start, op_index)
+                }
                 // expr '[' sublist ']'
-                TokenType::LeftSquare => parse_call(tokens, context, lhs, true, start, op_index),
+                TokenType::LeftSquare => {
+                    parse_call(tokens, errors, context, lhs, true, start, op_index)
+                }
                 // expr LBB sublist ']' ']'
-                TokenType::LeftDoubleSquare => parse_index(tokens, context, lhs, start, op_index),
+                TokenType::LeftDoubleSquare => {
+                    parse_index(tokens, errors, context, lhs, start, op_index)
+                }
                 // (SYMBOL | STR_CONST) (NS_GET | NS_GET_INT) (SYMBOL | STR_CONST)
                 TokenType::DoubleColon | TokenType::TripleColon => parse_namespace(
                     tokens,
+                    errors,
                     context,
                     lhs,
                     right_binding_power,
@@ -214,11 +335,12 @@ fn parse_expr(
                 ),
                 // expr ('$' | '@') (SYMBOL | STR_CONST)
                 TokenType::Dollar | TokenType::At => {
-                    parse_extraction(tokens, context, lhs, right_binding_power, start)
+                    parse_extraction(tokens, errors, context, lhs, right_binding_power, start)
                 }
                 // expr ('+' | '-' | ...etc) expr
                 _ => parse_binary(
                     tokens,
+                    errors,
                     context,
                     op,
                     lhs,
@@ -243,9 +365,15 @@ fn get_delimiters(square: bool) -> (TokenType, TokenType) {
     }
 }
 
+/// Parse a prefix operator (e.g. `- 1`)
+///
+/// Parses the following expressions:
+/// ( '-' | '+' | '!' | '~' ) expr
+/// '?' expr_or_assign_or_help
 fn parse_prefix(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     token_type: &TokenType,
     start: usize,
     eat_lines: bool,
@@ -253,12 +381,14 @@ fn parse_prefix(
     let ((), right_binding_power) = prefix_binding_power(token_type)
         .expect("Every prefix operator must have a right binding power");
     let eq_assign = token_type == &TokenType::Help;
+    let binary_help = eq_assign;
     let rhs = parse_expr(
         tokens,
+        errors,
         right_binding_power,
         eat_lines,
         eq_assign,
-        false,
+        binary_help,
         context,
     );
 
@@ -269,8 +399,23 @@ fn parse_prefix(
     )
 }
 
-fn parse_braces(tokens: &mut Tokens, context: &[ClosingDelim], start: usize) -> Node {
-    let context = &add_context(context, ClosingDelim::Curly);
+/// Parse a set of expressions in curly braces (`{}`):
+///
+/// '{' exprlist '}'
+///
+/// exprlist: expr_or_assign_or_help
+///     | exprlist ';' expr_or_assign_or_help
+///     | exprlist ';'
+///     | exprlist '\n' expr_or_assign_or_help
+///     | exprlist '\n'
+///
+fn parse_braces(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
+    start: usize,
+) -> Node {
+    let context = &add_context(context, TokenType::RightCurly);
 
     let mut exprs = Vec::new();
 
@@ -279,23 +424,24 @@ fn parse_braces(tokens: &mut Tokens, context: &[ClosingDelim], start: usize) -> 
             Some((_, token)) if token.token_type() == &TokenType::RightCurly => {
                 break;
             }
-            Some((_, token)) if is_closing(token.token_type(), true, context) => {
+            Some((i, token)) if is_closing(token.token_type(), context) => {
                 // TODO: Throw error
-                panic!("Unexpected closing delimiter");
+                errors.push(ParseError::single("Expected '}'", i));
                 break;
             }
             None => {
                 // TODO: Throw error
-                panic!("Unexpected closing delimiter");
+                errors.push(ParseError::at_end("Expected '}'"));
                 break;
             }
-            Some(x) => {}
+            Some(_) => {}
         }
 
-        exprs.push(parse_expr(tokens, 0, false, true, true, context));
+        exprs.push(parse_expr(tokens, errors, 0, false, true, true, context));
 
         if let Some((_, TokenType::NewLine | TokenType::SemiColon)) = peek_delims(
             tokens,
+            errors,
             &[
                 TokenType::NewLine,
                 TokenType::SemiColon,
@@ -303,10 +449,18 @@ fn parse_braces(tokens: &mut Tokens, context: &[ClosingDelim], start: usize) -> 
             ],
             context,
             false,
+            true,
+            "Expected a newline, '}' or ';'",
         ) {};
     }
 
-    let delim_end = expect_delim(tokens, TokenType::RightCurly, context);
+    let delim_end = expect_delim(
+        tokens,
+        errors,
+        TokenType::RightCurly,
+        context,
+        "Expected '}'",
+    );
 
     let end = delim_end.unwrap_or(exprs.last().and_then(|x| x.end()).unwrap_or(start));
 
@@ -318,13 +472,25 @@ fn parse_braces(tokens: &mut Tokens, context: &[ClosingDelim], start: usize) -> 
     )
 }
 
-// '(' expr_or_assign_or_help ')'
-fn parse_brackets(tokens: &mut Tokens, context: &[ClosingDelim], start: usize) -> Node {
-    let context = &add_context(context, ClosingDelim::Paren);
+/// Parse an expression in brackets:
+/// '(' expr_or_assign_or_help ')'
+fn parse_brackets(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
+    start: usize,
+) -> Node {
+    let context = &add_context(context, TokenType::RightParen);
 
-    let inner = parse_expr(tokens, 0, true, true, true, context);
+    let inner = parse_expr(tokens, errors, 0, true, true, true, context);
 
-    let delim_end = expect_delim(tokens, TokenType::RightParen, context);
+    let delim_end = expect_delim(
+        tokens,
+        errors,
+        TokenType::RightParen,
+        context,
+        "Expected ')",
+    );
 
     let end = delim_end.unwrap_or(inner.end().unwrap_or(start));
     Node::new(
@@ -335,32 +501,58 @@ fn parse_brackets(tokens: &mut Tokens, context: &[ClosingDelim], start: usize) -
     )
 }
 
+/// Parses a function definition.
+///
+/// Parses the following expressions:
+///
+/// FUNCTION '(' formlist ')' expr_or_assign_or_help
+/// '\\' '(' formlist ')' expr_or_assign_or_help
+///
+/// Note that lambda functions do not allow any newlines before the formlist starts, so
+/// `eat_lines_init` controls whether to skip newlines before parsing the formlist.
 fn parse_function(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     start: usize,
     eat_lines: bool,
     eat_lines_init: bool,
 ) -> Node {
-    let args = parse_formlist(tokens, eat_lines_init, context);
+    let args = parse_formlist(tokens, errors, eat_lines_init, context);
 
-    let body = parse_expr(tokens, 4, eat_lines, true, true, context);
+    let body = parse_expr(tokens, errors, 4, eat_lines, true, true, context);
 
     let end = body.end().unwrap_or(args.end().unwrap_or(start));
     Node::ok(NodeType::Function, Span::new(start, end), vec![args, body])
 }
 
+/// Parses an if statement, defined as the following expressions:
+///
+/// IF ifcond expr_or_assign_or_help
+/// IF ifcond expr_or_assign_or_help ELSE expr_or_assign_or_help
+///
+/// Note that newlines after the condition need to be treated carefully, see
+/// [skip_whitespace_after_if()].
 fn parse_if_statement(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     start: usize,
     eat_lines: bool,
 ) -> Node {
-    let context = &add_context(context, ClosingDelim::Else);
+    let context = &add_context(context, TokenType::Else);
 
-    let condition = parse_condition(tokens, context);
+    let condition = parse_condition(tokens, errors, context);
     let (_, binding_power) = prefix_binding_power(&TokenType::If).unwrap();
-    let expr = parse_expr(tokens, binding_power, eat_lines, true, true, context);
+    let expr = parse_expr(
+        tokens,
+        errors,
+        binding_power,
+        eat_lines,
+        true,
+        true,
+        context,
+    );
     skip_whitespace_after_if(tokens, eat_lines);
 
     let current_end = expr.end().unwrap_or(condition.end().unwrap_or(start));
@@ -369,7 +561,15 @@ fn parse_if_statement(
         Some((_, token)) if token.token_type() == &TokenType::Else => {
             next_token(tokens, eat_lines);
             let (_, binding_power) = prefix_binding_power(&TokenType::Else).unwrap();
-            let else_expr = parse_expr(tokens, binding_power, eat_lines, true, true, context);
+            let else_expr = parse_expr(
+                tokens,
+                errors,
+                binding_power,
+                eat_lines,
+                true,
+                true,
+                context,
+            );
 
             Node::ok(
                 NodeType::If,
@@ -385,34 +585,51 @@ fn parse_if_statement(
     }
 }
 
+/// Parse a for statement, defined as:
+///
+/// FOR forcond expr_or_assign_or_help
 fn parse_for_statement(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     start: usize,
     eat_lines: bool,
 ) -> Node {
     let condition = parse_for_condition(
         tokens,
-        &add_contexts(context, &[ClosingDelim::Paren, ClosingDelim::In]),
+        errors,
+        &add_contexts(context, &[TokenType::RightParen, TokenType::In]),
     );
 
     let (_, binding_power) = prefix_binding_power(&TokenType::For).unwrap();
-    let expr = parse_expr(tokens, binding_power, eat_lines, true, true, context);
+    let expr = parse_expr(
+        tokens,
+        errors,
+        binding_power,
+        eat_lines,
+        true,
+        true,
+        context,
+    );
 
     let end = expr.end().unwrap_or(condition.end().unwrap_or(start));
 
     Node::ok(NodeType::For, Span::new(start, end), vec![condition, expr])
 }
 
+/// Parse a while statement, defined as:
+///
+/// WHILE whilecond expr_or_assign_or_help
 fn parse_while_statement(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     start: usize,
     eat_lines: bool,
 ) -> Node {
-    let condition = parse_condition(tokens, context);
+    let condition = parse_condition(tokens, errors, context);
 
-    let expr = parse_expr(tokens, 0, eat_lines, true, true, context);
+    let expr = parse_expr(tokens, errors, 0, eat_lines, true, true, context);
 
     let end = expr.end().unwrap_or(condition.end().unwrap_or(start));
 
@@ -423,14 +640,26 @@ fn parse_while_statement(
     )
 }
 
+/// Parse a repeat statement, defined as:
+///
+/// REPEAT expr_or_assign_or_help
 fn parse_repeat_statement(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     start: usize,
     eat_lines: bool,
 ) -> Node {
     let (_, binding_power) = prefix_binding_power(&TokenType::Repeat).unwrap();
-    let expr = parse_expr(tokens, binding_power, eat_lines, true, true, context);
+    let expr = parse_expr(
+        tokens,
+        errors,
+        binding_power,
+        eat_lines,
+        true,
+        true,
+        context,
+    );
 
     let end = expr.end().unwrap_or(start);
 
@@ -439,7 +668,8 @@ fn parse_repeat_statement(
 
 fn parse_call(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     lhs: Node,
     square: bool,
     start: usize,
@@ -451,25 +681,35 @@ fn parse_call(
         NodeType::Call
     };
 
-    let rhs = parse_sublist(tokens, context, square, bracket_index);
+    let rhs = parse_sublist(tokens, errors, context, square, bracket_index);
 
     let end = rhs.end().unwrap_or(bracket_index);
 
     Node::ok(node_type, Span::new(start, end), vec![lhs, rhs])
 }
 
+/// Parse an indexing (`[[]]`) operation, defined as:
+///
+/// expr LBB sublist ']' ']'
 fn parse_index(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     lhs: Node,
     start: usize,
     token_index: usize,
 ) -> Node {
-    let context = &add_context(context, ClosingDelim::Square);
+    let context = &add_context(context, TokenType::RightSquare);
 
-    let rhs = parse_sublist(tokens, context, true, token_index);
+    let rhs = parse_sublist(tokens, errors, context, true, token_index);
 
-    let second_square = expect_delim(tokens, TokenType::RightSquare, context);
+    let second_square = expect_delim(
+        tokens,
+        errors,
+        TokenType::RightSquare,
+        context,
+        "Expected ']",
+    );
 
     let end = second_square.unwrap_or(rhs.end().unwrap_or(start));
 
@@ -481,30 +721,61 @@ fn parse_index(
     )
 }
 
+/// Parse a namespacing operation (`::` or `:::`) defined as the following expressions:
+///
+/// SYMBOL NS_GET SYMBOL
+/// SYMBOL NS_GET STR_CONST
+/// STR_CONST NS_GET SYMBOL
+/// STR_CONST NS_GET STR_CONST
+/// SYMBOL NS_GET_INT SYMBOL
+/// SYMBOL NS_GET_INT STR_CONST
+/// STR_CONST NS_GET_INT SYMBOL
+/// STR_CONST NS_GET_INT STR_CONST
 fn parse_namespace(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     lhs: Node,
     right_binding_power: u8,
     start: usize,
     internal: bool,
 ) -> Node {
-    if !matches!(
+    let lhs = if !matches!(
         lhs.node_type(),
         &NodeType::Symbol { .. } | &NodeType::LiteralString { .. }
     ) {
         // Turn the lhs into an error node
-        todo!()
+        errors.push(ParseError::new(
+            "Expected a symbol or string",
+            Some(lhs.span().clone()),
+        ));
+        lhs.as_error()
+    } else {
+        lhs
     };
 
-    let rhs = parse_expr(tokens, right_binding_power, false, true, true, context);
-    if !matches!(
+    let rhs = parse_expr(
+        tokens,
+        errors,
+        right_binding_power,
+        false,
+        true,
+        true,
+        context,
+    );
+
+    let rhs = if !matches!(
         rhs.node_type(),
         &NodeType::Symbol { .. } | &NodeType::LiteralString { .. }
     ) {
-        // Turn the rhs into an error node
-        todo!()
-    }
+        errors.push(ParseError::new(
+            "Expected a symbol or string",
+            Some(lhs.span().clone()),
+        ));
+        rhs.as_error()
+    } else {
+        rhs
+    };
 
     Node::ok(
         NodeType::NameSpace { internal },
@@ -513,21 +784,43 @@ fn parse_namespace(
     )
 }
 
+/// Parse an extraction expression (`$` or `@`), defined as the following expressions:
+///
+/// expr '$' SYMBOL
+/// expr '$' STR_CONST
+/// expr '@' SYMBOL
+/// expr '@' STR_CONST
 fn parse_extraction(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     lhs: Node,
     right_binding_power: u8,
     start: usize,
 ) -> Node {
-    let rhs = parse_expr(tokens, right_binding_power, false, true, true, context);
-    if !matches!(
+    let rhs = parse_expr(
+        tokens,
+        errors,
+        right_binding_power,
+        false,
+        true,
+        true,
+        context,
+    );
+
+    let rhs = if !matches!(
         rhs.node_type(),
         &NodeType::Symbol { .. } | &NodeType::LiteralString { .. }
     ) {
         // Turn the lhs into an error node
-        todo!()
-    }
+        errors.push(ParseError::new(
+            "Expected a symbol or string",
+            Some(rhs.span().clone()),
+        ));
+        rhs.as_error()
+    } else {
+        rhs
+    };
 
     Node::ok(
         NodeType::Extract,
@@ -536,16 +829,50 @@ fn parse_extraction(
     )
 }
 
+/// Parse an expression that uses a binary/infix operator, defined as the following expressions:
+///
+/// expr ':'  expr
+/// expr '+'  expr
+/// expr '-' expr
+/// expr '*' expr
+/// expr '/' expr
+/// expr '^' expr
+/// expr SPECIAL expr
+/// expr '~' expr
+/// expr LT expr
+/// expr LE expr
+/// expr EQ expr
+/// expr NE expr
+/// expr GE expr
+/// expr GT expr
+/// expr AND expr
+/// expr OR expr
+/// expr AND2 expr
+/// expr OR2 expr
+/// expr PIPE expr
+/// expr PIPEBIND expr
+/// expr LEFT_ASSIGN expr
+/// expr RIGHT_ASSIGN expr
+#[allow(clippy::too_many_arguments)]
 fn parse_binary(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     op: Token,
     lhs: Node,
     right_binding_power: u8,
     eat_lines: bool,
     start: usize,
 ) -> Node {
-    let rhs = parse_expr(tokens, right_binding_power, eat_lines, true, true, context);
+    let rhs = parse_expr(
+        tokens,
+        errors,
+        right_binding_power,
+        eat_lines,
+        true,
+        true,
+        context,
+    );
 
     Node::ok(
         NodeType::Binary { op },
@@ -554,28 +881,37 @@ fn parse_binary(
     )
 }
 
-fn expect_delim(tokens: &mut Tokens, delim: TokenType, context: &[ClosingDelim]) -> Option<usize> {
+/// Parse until a delimiter is found, and return the index of the delimiter
+///
+/// Returns [None] if the end of the file is reached, or if another delimiter
+/// that closes a parent context is found (e.g. `({)`).
+///
+/// Creates an error every time for every unexpected token that is found.
+fn expect_delim(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    delim: TokenType,
+    context: &[TokenType],
+    error_message: &'static str,
+) -> Option<usize> {
     let mut end = None;
-    #[allow(clippy::never_loop)]
     loop {
         match peek_token(tokens, true) {
             Some((_, token)) if token.token_type() == &delim => {
                 end = Some(next_token(tokens, true).unwrap().0);
                 break;
             }
-            Some((i, token)) if is_closing(token.token_type(), true, context) => {
-                // TODO: Throw error
-                println!("Expected {:?}, got {:?}", delim, (i, token));
-                panic!("Unexpected closing delimiter");
+            Some((i, token)) if is_closing(token.token_type(), context) => {
+                errors.push(ParseError::single(error_message, i));
                 break;
             }
             None => {
                 // TODO: Throw error
-                panic!("Unexpected closing delimiter");
+                errors.push(ParseError::at_end(error_message));
                 break;
             }
-            Some(x) => {
-                panic!("Unexpected token: {:?}", x);
+            Some((i, _)) => {
+                errors.push(ParseError::single(error_message, i));
             }
         }
 
@@ -585,54 +921,78 @@ fn expect_delim(tokens: &mut Tokens, delim: TokenType, context: &[ClosingDelim])
     end
 }
 
+/// A version of [expect_delim()] that looks for a set of delimiters, returning the type that is
+/// found.
+///
+/// `error_on_eof` controls whether an error is created if the end of the
+/// file is reached. The function will not produce an error if a closing
+/// delimiter is found.
 fn peek_delims(
     tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
     delims: &[TokenType],
-    context: &[ClosingDelim],
+    context: &[TokenType],
     eat_lines: bool,
+    error_on_eof: bool,
+    error_message: &'static str,
 ) -> Option<(usize, TokenType)> {
-    #[allow(clippy::never_loop)]
     loop {
         match peek_token(tokens, eat_lines) {
             Some((i, token)) if delims.contains(token.token_type()) => {
                 return Some((i, token.token_type().clone()));
             }
-            Some((_, token)) if is_closing(token.token_type(), true, context) => {
-                // TODO: Throw error
-                panic!("Unexpected closing delimiter");
+            Some((_, token)) if is_closing(token.token_type(), context) => {
                 return None;
             }
             None => {
-                // TODO: Throw error
-                panic!("Unexpected end of input");
+                if error_on_eof {
+                    errors.push(ParseError::at_end(error_message));
+                }
+
                 return None;
             }
-            Some(x) => {
-                panic!("Unexpected token: {:?}", x);
+            Some((i, _)) => {
+                errors.push(ParseError::single(error_message, i));
                 next_token(tokens, true);
             }
         }
     }
 }
 
-fn parse_condition(tokens: &mut Tokens, context: &[ClosingDelim]) -> Node {
-    let context = &add_context(context, ClosingDelim::Paren);
+/// Parse a condition, defined as:
+///
+/// '(' expr_or_help ')'
+///
+/// Note that `ifcond` is identically defined, and so this function is used.
+fn parse_condition(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
+) -> Node {
+    let context = &add_context(context, TokenType::RightParen);
 
     let (start, _) = match peek_token(tokens, true) {
         Some((_, token)) if token.token_type() == &TokenType::LeftParen => {
             next_token(tokens, true).unwrap()
         }
         x => {
-            return {
-                panic!("Expected '(', got {:?}", x);
-                Node::empty(NodeType::FormList)
-            }
+            errors.push(ParseError::new(
+                "Expected '('",
+                x.map(|x| Span::single(x.0)),
+            ));
+            return Node::empty(NodeType::FormList);
         }
     };
 
-    let cond = parse_expr(tokens, 0, true, false, true, context);
+    let cond = parse_expr(tokens, errors, 0, true, false, true, context);
 
-    let delim_end = expect_delim(tokens, TokenType::RightParen, context);
+    let delim_end = expect_delim(
+        tokens,
+        errors,
+        TokenType::RightParen,
+        context,
+        "Expected ')'",
+    );
 
     let end = delim_end.unwrap_or(cond.end().unwrap_or(start));
 
@@ -644,27 +1004,42 @@ fn parse_condition(tokens: &mut Tokens, context: &[ClosingDelim]) -> Node {
     )
 }
 
-// forcond :    '(' SYMBOL IN expr_or_help ')'
-fn parse_for_condition(tokens: &mut Tokens, context: &[ClosingDelim]) -> Node {
-    let context = &add_context(context, ClosingDelim::Paren);
+/// Parses a for condition, defined as
+///
+/// '(' SYMBOL IN expr_or_help ')'
+fn parse_for_condition(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
+) -> Node {
+    let context = &add_context(context, TokenType::RightParen);
 
     let (start, _) = match peek_token(tokens, true) {
         Some((_, token)) if token.token_type() == &TokenType::LeftParen => {
             next_token(tokens, true).unwrap()
         }
         x => {
-            panic!("Expected '(', got {:?}", x);
+            errors.push(ParseError::new(
+                "Expected '('",
+                x.map(|x| Span::single(x.0)),
+            ));
             return Node::empty(NodeType::FormList);
         }
     };
 
-    let lhs = parse_expr(tokens, 0, true, false, true, context);
+    let lhs = parse_expr(tokens, errors, 0, true, false, true, context);
 
-    let in_op = expect_delim(tokens, TokenType::In, context);
+    let in_op = expect_delim(tokens, errors, TokenType::In, context, "Expected 'in'");
 
-    let rhs = parse_expr(tokens, 0, true, false, true, context);
+    let rhs = parse_expr(tokens, errors, 0, true, false, true, context);
 
-    let delim_end = expect_delim(tokens, TokenType::RightParen, context);
+    let delim_end = expect_delim(
+        tokens,
+        errors,
+        TokenType::RightParen,
+        context,
+        "Expected ')",
+    );
 
     let end = delim_end.unwrap_or(
         rhs.end()
@@ -679,17 +1054,23 @@ fn parse_for_condition(tokens: &mut Tokens, context: &[ClosingDelim]) -> Node {
     )
 }
 
+/// Skip all non-useful tokens, including newlines if `eat_lines` is `true`.
+///
+/// Skips whitespace, comments and error tokens.
 fn skip_whitespace(tokens: &mut Tokens, eat_lines: bool) {
     while tokens
         .next_if(|(_, token)| {
             token.token_type() == &TokenType::WhiteSpace
                 || token.token_type() == &TokenType::Comment
+                || token.token_type() == &TokenType::Error
                 || (eat_lines && token.token_type() == &TokenType::NewLine)
         })
         .is_some()
     {}
 }
 
+/// Skips all whitespace after an if condition. Skips all newlines (even if `eat_lines` is false) if
+/// the next useful token is `else`.
 fn skip_whitespace_after_if(tokens: &mut Tokens, eat_lines: bool) {
     if eat_lines {
         skip_whitespace(tokens, true);
@@ -699,7 +1080,7 @@ fn skip_whitespace_after_if(tokens: &mut Tokens, eat_lines: bool) {
     let next_token = tokens.clone().find(|(_, token)| {
         !matches!(
             token.token_type(),
-            &TokenType::WhiteSpace | &TokenType::NewLine | &TokenType::Comment
+            &TokenType::WhiteSpace | &TokenType::NewLine | &TokenType::Comment | &TokenType::Error
         )
     });
 
@@ -710,19 +1091,36 @@ fn skip_whitespace_after_if(tokens: &mut Tokens, eat_lines: bool) {
     }
 }
 
-fn parse_formlist(tokens: &mut Tokens, eat_lines_init: bool, context: &[ClosingDelim]) -> Node {
+/// Parses the list of formal arguments / parameters to a function
+///
+/// '(' formlist ')'
+///
+/// formlist: SYMBOL
+///     | SYMBOL EQ_ASSIGN expr_or_help
+///     | formlist ',' SYMBOL
+///     | formlist ',' SYMBOL EQ_ASSIGN expr_or_help
+fn parse_formlist(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    eat_lines_init: bool,
+    context: &[TokenType],
+) -> Node {
     let (start, _) = match peek_token(tokens, eat_lines_init) {
         Some((_, token)) if token.token_type() == &TokenType::LeftParen => {
             next_token(tokens, true).unwrap()
         }
         x => {
-            panic!("Expected '(', got {:?}", x);
+            errors.push(ParseError::new(
+                "Expected '('",
+                x.map(|x| Span::single(x.0)),
+            ));
             return Node::empty(NodeType::FormList);
         }
     };
 
     parse_list(
         tokens,
+        errors,
         NodeType::FormList,
         false,
         start,
@@ -731,14 +1129,30 @@ fn parse_formlist(tokens: &mut Tokens, eat_lines_init: bool, context: &[ClosingD
     )
 }
 
+/// Parses a list of arguments to a function, defined as the following expressions:
+///
+/// '(' sublist ')'
+/// '[' sublist ']'
+///
+/// sublist: sub | sublist ',' sub
+///
+/// sub: expr_or_help
+///     | SYMBOL EQ_ASSIGN
+///     | SYMBOL EQ_ASSIGN expr_or_help
+///     | STR_CONST EQ_ASSIGN
+///     | STR_CONST EQ_ASSIGN expr_or_help
+///     | NULL_CONST EQ_ASSIGN
+///     | NULL_CONST EQ_ASSIGN expr_or_help
 fn parse_sublist(
     tokens: &mut Tokens,
-    context: &[ClosingDelim],
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
     square: bool,
     start: usize,
 ) -> Node {
     parse_list(
         tokens,
+        errors,
         NodeType::SubList,
         square,
         start,
@@ -747,23 +1161,25 @@ fn parse_sublist(
     )
 }
 
+/// Parses either a sublist or a formlist
 fn parse_list(
     tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
     node_type: NodeType,
     square: bool,
     start: usize,
-    context: &[ClosingDelim],
-    parse_item: impl Fn(&mut Tokens, &[ClosingDelim]) -> Option<Node>,
+    context: &[TokenType],
+    parse_item: impl Fn(&mut Tokens, &mut Vec<ParseError>, &[TokenType]) -> Option<Node>,
 ) -> Node {
     let context = &add_contexts(
         context,
         &[
             if square {
-                ClosingDelim::Square
+                TokenType::RightSquare
             } else {
-                ClosingDelim::Paren
+                TokenType::RightParen
             },
-            ClosingDelim::Comma,
+            TokenType::Comma,
         ],
     );
 
@@ -773,26 +1189,45 @@ fn parse_list(
     let delims = &[rhs.clone(), TokenType::Comma];
 
     loop {
-        if let Some(item) = parse_item(tokens, context) {
+        if let Some(item) = parse_item(tokens, errors, context) {
             args.push(item);
         }
 
-        let delim = peek_delims(tokens, delims, context, true);
+        let delim = peek_delims(
+            tokens,
+            errors,
+            delims,
+            context,
+            true,
+            true,
+            if square {
+                "Expected ']' or ','"
+            } else {
+                "Expected ')' or ','"
+            },
+        );
 
         match delim {
-            Some((_, TokenType::Comma)) => {}
-            Some((_, token_type)) if is_closing(&token_type, true, context) => break,
-            Some(x) => {
-                println!("{:?}", x);
-                panic!("Expected comma or closing bracket");
+            Some((_, TokenType::Comma)) => {
+                next_token(tokens, true);
             }
+            Some((_, token_type)) if is_closing(&token_type, context) => break,
+            Some(_) => {}
             None => break,
         };
-
-        next_token(tokens, true);
     }
 
-    let final_delim = expect_delim(tokens, rhs, context);
+    let final_delim = expect_delim(
+        tokens,
+        errors,
+        rhs,
+        context,
+        if square {
+            "Expected ']'"
+        } else {
+            "Expected ')'"
+        },
+    );
 
     let end = final_delim.unwrap_or(args.last().and_then(|x| x.end()).unwrap_or(start));
 
@@ -804,48 +1239,45 @@ fn parse_list(
     )
 }
 
-// sublist  :   sub
-//          |   sublist cr ',' sub      { $$ = xxsublist2($1,$4); }
-//          ;
-//
-// sub  :
-//      |   expr_or_help
-//      |   SYMBOL EQ_ASSIGN
-//      |   SYMBOL EQ_ASSIGN expr_or_help
-//      |   STR_CONST EQ_ASSIGN
-//      |   STR_CONST EQ_ASSIGN expr_or_help
-//      |   NULL_CONST EQ_ASSIGN
-//      |   NULL_CONST EQ_ASSIGN expr_or_help
-//      ;
-fn parse_sublist_item(tokens: &mut Tokens, context: &[ClosingDelim]) -> Option<Node> {
+/// Parses an item of a sublist
+fn parse_sublist_item(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
+) -> Option<Node> {
     if peek_token(tokens, true).is_some_and(|(_, token)| {
-        token.token_type() == &TokenType::Comma || is_closing(token.token_type(), true, context)
+        token.token_type() == &TokenType::Comma || is_closing(token.token_type(), context)
     }) {
         return None;
     }
 
-    let lhs = parse_expr(tokens, 0, true, false, true, context);
+    let lhs = parse_expr(tokens, errors, 0, true, false, true, context);
 
     let (equals_index, next) = peek_token(tokens, true).unwrap();
 
-    if next.token_type() != &TokenType::Equals && next.token_type() != &TokenType::ColonEquals {
+    if next.token_type() != &TokenType::Equals {
         return Some(Node::wraps(NodeType::SubListItem, lhs));
-    } else {
-        if !matches!(
-            lhs.node_type(),
-            &NodeType::Symbol { .. } | &NodeType::LiteralString { .. } | &NodeType::Null
-        ) {
-            // TODO: Error and continue
-            panic!("Unexpected closing delimiter");
-        }
-
-        next_token(tokens, true);
     }
 
+    let lhs = if !matches!(
+        lhs.node_type(),
+        &NodeType::Symbol { .. } | &NodeType::LiteralString { .. } | &NodeType::Null
+    ) {
+        // TODO: Error and continue
+        errors.push(ParseError::new(
+            "Expected a symbol, string, or NULL",
+            Some(lhs.span().clone()),
+        ));
+
+        lhs.as_error()
+    } else {
+        lhs
+    };
+
+    next_token(tokens, true);
+
     let start = lhs.start().unwrap_or(equals_index);
-    if peek_token(tokens, true)
-        .is_some_and(|(_, token)| is_closing(token.token_type(), true, context))
-    {
+    if peek_token(tokens, true).is_some_and(|(_, token)| is_closing(token.token_type(), context)) {
         return Some(Node::ok(
             NodeType::SubListItem,
             Span::new(start, equals_index),
@@ -853,7 +1285,7 @@ fn parse_sublist_item(tokens: &mut Tokens, context: &[ClosingDelim]) -> Option<N
         ));
     }
 
-    let rhs = parse_expr(tokens, 0, true, false, true, context);
+    let rhs = parse_expr(tokens, errors, 0, true, false, true, context);
     let end = rhs.end().unwrap_or(equals_index);
     Some(Node::ok(
         NodeType::SubListItem,
@@ -862,34 +1294,40 @@ fn parse_sublist_item(tokens: &mut Tokens, context: &[ClosingDelim]) -> Option<N
     ))
 }
 
-// formlist:
-//         |    SYMBOL
-//         |    SYMBOL EQ_ASSIGN expr_or_help
-//         |    formlist ',' SYMBOL
-//         |    formlist ',' SYMBOL EQ_ASSIGN expr_or_help
-fn parse_formlist_item(tokens: &mut Tokens, context: &[ClosingDelim]) -> Option<Node> {
+/// Parses an item of a formlist
+fn parse_formlist_item(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+    context: &[TokenType],
+) -> Option<Node> {
     if peek_token(tokens, true).is_some_and(|(_, token)| {
-        token.token_type() == &TokenType::Comma || is_closing(token.token_type(), true, context)
+        token.token_type() == &TokenType::Comma || is_closing(token.token_type(), context)
     }) {
         return None;
     }
 
-    let lhs = parse_expr(tokens, 0, true, false, true, context);
+    let lhs = parse_expr(tokens, errors, 0, true, false, true, context);
 
-    if !matches!(lhs.node_type(), NodeType::Symbol { .. }) {
-        // TODO: Throw error
-        panic!("Unexpected closing delimiter");
-    }
+    let lhs = if !matches!(lhs.node_type(), NodeType::Symbol { .. }) {
+        errors.push(ParseError::new(
+            "Expected a symbol, string, or NULL",
+            Some(lhs.span().clone()),
+        ));
+
+        lhs.as_error()
+    } else {
+        lhs
+    };
 
     let (equals_index, next) = peek_token(tokens, true).unwrap();
 
-    if next.token_type() != &TokenType::Equals && next.token_type() != &TokenType::ColonEquals {
+    if next.token_type() != &TokenType::Equals {
         return Some(Node::wraps(NodeType::FormListItem, lhs));
     } else {
         next_token(tokens, true);
     }
 
-    let rhs = parse_expr(tokens, 0, true, true, true, context);
+    let rhs = parse_expr(tokens, errors, 0, true, true, true, context);
 
     let start = lhs.start().unwrap_or(equals_index);
     let end = rhs.end().unwrap_or(equals_index);
@@ -929,23 +1367,25 @@ fn parse_formlist_item(tokens: &mut Tokens, context: &[ClosingDelim]) -> Option<
 // There are some operations that break these rules due to how the grammar is written.
 // For example, = and <- are swapped in precedence.
 
-// Determines the order of operations for infix operators
-//
-// If an operation has a larger binding power on its right than on its left, it
-// is left associative. For example, if + has power (1, 2):
-// 1   +   2   +   3
-//  (1) (2) (1) (2)
-// = (1 + 2) + 3
-//
-// If an operation is not associative, use the same binding power to cause an error if
-// two are used in a row.
-//
-// https://rdrr.io/r/base/Syntax.html
+/// Determines the order of operations for infix operators.
+///
+/// If an operation has a larger binding power on its right than on its left, it
+/// is left associative. For example, if + has power (1, 2):
+/// 1   +   2   +   3
+///  (1) (2) (1) (2)
+/// = (1 + 2) + 3
+///
+/// If an operation is not associative, use the same binding power to cause an error if
+/// two are used in a row.
+///
+/// https://rdrr.io/r/base/Syntax.html
 fn infix_binding_power(token: &TokenType) -> Option<(u8, u8)> {
     match *token {
         TokenType::Help => Some((1, 2)),
         TokenType::Equals => Some((10, 9)),
-        TokenType::LeftAssign | TokenType::DoubleLeftAssign => Some((12, 11)),
+        TokenType::LeftAssign | TokenType::DoubleLeftAssign | TokenType::ColonEquals => {
+            Some((12, 11))
+        }
         TokenType::RightAssign | TokenType::DoubleRightAssign => Some((13, 14)),
         TokenType::Tilde => Some((15, 16)),
         TokenType::Or | TokenType::DoubleOr => Some((17, 18)),
@@ -970,6 +1410,7 @@ fn infix_binding_power(token: &TokenType) -> Option<(u8, u8)> {
     }
 }
 
+/// Determines the binding power of prefix operators
 fn prefix_binding_power(token_type: &TokenType) -> Option<((), u8)> {
     match *token_type {
         TokenType::Help => Some(((), 2)),
@@ -983,28 +1424,23 @@ fn prefix_binding_power(token_type: &TokenType) -> Option<((), u8)> {
     }
 }
 
-fn is_closing(token_type: &TokenType, eat_lines: bool, context: &[ClosingDelim]) -> bool {
-    let closes = ClosingDelim::closes(token_type);
-
+/// Determines whether a token closes a context
+fn is_closing(token_type: &TokenType, context: &[TokenType]) -> bool {
     match token_type {
         TokenType::SemiColon => true,
-        TokenType::NewLine if !eat_lines => true,
-        _ if closes.is_some_and(|x| context.contains(&x)) => true,
+        _ if context.contains(token_type) => true,
         _ => false,
     }
 }
 
-fn is_potentially_closing(token_type: &TokenType) -> bool {
-    ClosingDelim::closes(token_type).is_some()
-}
-
-fn add_context(context: &[ClosingDelim], value: ClosingDelim) -> Vec<ClosingDelim> {
+/// Immutably appends a token type to a context
+fn add_context(context: &[TokenType], value: TokenType) -> Vec<TokenType> {
     let mut vec = context.to_vec();
     vec.push(value);
     vec
 }
 
-fn add_contexts(context: &[ClosingDelim], values: &[ClosingDelim]) -> Vec<ClosingDelim> {
+fn add_contexts(context: &[TokenType], values: &[TokenType]) -> Vec<TokenType> {
     let mut vec = context.to_vec();
     vec.extend_from_slice(values);
     vec

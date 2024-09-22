@@ -1,6 +1,8 @@
 use std::str::Chars;
 
+use crate::grammar::FileSpan;
 
+/// A wrapper around [Chars] that allows for a few operations that are useful during lexing.
 pub struct CharTraverser<'a> {
     chars: Chars<'a>,
     stored_string: String,
@@ -24,6 +26,7 @@ impl<'a> CharTraverser<'a> {
         }
     }
 
+    /// Get the next character
     pub fn next(&mut self) -> Option<char> {
         let next = match self.next.pop() {
             Some(x) => x,
@@ -42,6 +45,7 @@ impl<'a> CharTraverser<'a> {
         Some(next)
     }
 
+    /// Get the next character if it matches a condition
     pub fn next_if(&mut self, mut accept: impl FnMut(char) -> bool) -> Option<char> {
         let next = match self.next.pop() {
             Some(x) => x,
@@ -64,10 +68,12 @@ impl<'a> CharTraverser<'a> {
         }
     }
 
+    /// Get the next character if it matches any of the characters in `accept`
     pub fn next_if_matches(&mut self, accept: &str) -> Option<char> {
         self.next_if(|x| accept.contains(x))
     }
 
+    /// Get the next character while it matches a condition
     pub fn next_while(&mut self, mut accept: impl FnMut(char) -> bool) {
         let mut next = match self.next.pop() {
             Some(x) => x,
@@ -99,6 +105,8 @@ impl<'a> CharTraverser<'a> {
         self.next.push(next);
     }
 
+    /// Get the next character while it matches any of the characters in `accept`,
+    /// and return the number of characters that were consumed.
     pub fn count_next(&mut self, accept: impl Fn(char) -> bool) -> usize {
         let mut count = 0;
 
@@ -136,13 +144,19 @@ impl<'a> CharTraverser<'a> {
         count
     }
 
+    /// Get the string of all the characters that have been read so far
     pub fn stored_string(&self) -> &str {
         &self.stored_string
     }
 
-    pub fn take_stored_string(&mut self) -> String {
+    /// Take the string of all the characters that have been read so far, along with
+    /// the span of characters that it represents
+    ///
+    /// Resets the stored string to an empty string
+    pub fn take_stored_string(&mut self) -> (String, FileSpan) {
+        let span = FileSpan::new(self.start_line, self.start_column, self.line, self.column);
         self.start_line = self.line;
         self.start_column = self.column;
-        self.stored_string.drain(..).collect()
+        (self.stored_string.drain(..).collect(), span)
     }
 }

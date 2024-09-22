@@ -10,7 +10,6 @@ mod lexer;
 pub mod nodes;
 mod parser;
 mod peeking_chars;
-mod syntax;
 
 fn main() {
     let file = args().nth(1).unwrap();

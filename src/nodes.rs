@@ -2,6 +2,7 @@ use std::{fmt::Display, iter::Peekable, str::Chars};
 
 use crate::grammar::{Span, Token, TokenType};
 
+/// A node of the syntax tree
 #[derive(Debug)]
 pub struct Node {
     node_type: NodeType,
@@ -12,6 +13,7 @@ pub struct Node {
 }
 
 impl Node {
+    /// Create a non-empty node.
     pub fn new(node_type: NodeType, span: Span, children: Vec<Node>, error: bool) -> Self {
         Self {
             node_type,
@@ -22,6 +24,7 @@ impl Node {
         }
     }
 
+    /// Create a nn-empty node that is not an error.
     pub fn ok(node_type: NodeType, span: Span, children: Vec<Node>) -> Self {
         Self {
             node_type,
@@ -32,6 +35,7 @@ impl Node {
         }
     }
 
+    /// Create a non-empty error node.
     pub fn error(node_type: NodeType, span: Span, children: Vec<Node>) -> Self {
         Self {
             node_type,
@@ -42,6 +46,7 @@ impl Node {
         }
     }
 
+    /// Create an empty error node.
     pub fn empty(node_type: NodeType) -> Self {
         Self {
             node_type,
@@ -52,6 +57,7 @@ impl Node {
         }
     }
 
+    /// Create a node that wraps another node
     pub fn wraps(node_type: NodeType, child: Node) -> Self {
         Self {
             node_type,
@@ -62,6 +68,12 @@ impl Node {
         }
     }
 
+    /// Create a new node that is always an error
+    pub fn as_error(self) -> Node {
+        Node::error(self.node_type, self.span, self.children)
+    }
+
+    /// Get the end of the span of the node, if it is not empty.
     pub fn end(&self) -> Option<usize> {
         if self.children.is_empty() {
             Some(self.span.end())
@@ -70,6 +82,7 @@ impl Node {
         }
     }
 
+    /// Get the start of the span of the node, if it is not empty.
     pub fn start(&self) -> Option<usize> {
         if self.children.is_empty() {
             Some(self.span.start())
@@ -137,12 +150,7 @@ pub enum NodeType {
     SubListItem,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum NodeError {
-    EmptyNode,
-    UnclosedDelimiter,
-}
-
+/// Parse a node that is made up of a single token (the leaves of the syntax tree).
 pub fn atom(token: &Token) -> Option<NodeType> {
     match *token.token_type() {
         TokenType::Number
@@ -171,7 +179,7 @@ pub fn atom(token: &Token) -> Option<NodeType> {
     }
 }
 
-pub fn parse_string(token: &Token, symbol: bool) -> String {
+fn parse_string(token: &Token, symbol: bool) -> String {
     let inner_content = &token.content()[1..token.content().len() - 1];
 
     let mut result = String::new();
@@ -227,7 +235,7 @@ pub fn parse_string(token: &Token, symbol: bool) -> String {
     result
 }
 
-pub fn parse_raw_string(token: &Token) -> String {
+fn parse_raw_string(token: &Token) -> String {
     let mut chars = token.content().chars();
 
     let mut count = 0;
@@ -240,7 +248,7 @@ pub fn parse_raw_string(token: &Token) -> String {
     content.to_string()
 }
 
-pub fn parse_symbol(token: &Token) -> String {
+fn parse_symbol(token: &Token) -> String {
     if !token.content().starts_with('`') {
         return token.content().to_string();
     }
@@ -248,7 +256,7 @@ pub fn parse_symbol(token: &Token) -> String {
     parse_string(token, true)
 }
 
-pub fn parse_base(chars: &mut Peekable<Chars>, first: char, base: u32) -> u32 {
+fn parse_base(chars: &mut Peekable<Chars>, first: char, base: u32) -> u32 {
     let mut n = first.to_digit(base).unwrap();
 
     while let Some(x) = chars.peek().and_then(|x| x.to_digit(base)) {

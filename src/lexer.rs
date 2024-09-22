@@ -4,6 +4,12 @@ use crate::grammar::{Token, TokenType, NA};
 
 use crate::peeking_chars::CharTraverser;
 
+pub struct LexerError {
+    pub message: &'static str,
+    pub index: usize,
+}
+
+/// Parse a number
 fn parse_number(input: &mut CharTraverser) {
     input.next_while(|x| x.is_ascii_digit() || x == '.');
 
@@ -16,6 +22,7 @@ fn parse_number(input: &mut CharTraverser) {
     input.next_if(|x| x == 'i' || x == 'L');
 }
 
+/// Parse a hexadecimal number
 fn parse_hex(input: &mut CharTraverser) {
     input.next_while(|x| x.is_ascii_hexdigit() || x == '.');
 
@@ -24,17 +31,25 @@ fn parse_hex(input: &mut CharTraverser) {
     }
 }
 
+/// Parse a number in E notation.
 fn parse_exp(input: &mut CharTraverser) {
     input.next_if(|x| x == '+' || x == '-');
 
     input.next_while(|x| x.is_ascii_digit());
 }
 
+/// Parse a symbol
 fn parse_symbol_value(input: &mut CharTraverser) {
     input.next_while(|x| x.is_alphanumeric() || x == '.' || x == '_');
 }
 
-fn parse_raw_string(input: &mut CharTraverser, quote: char) {
+/// Parse a raw string (e.g. r"(hello)")
+fn parse_raw_string(
+    input: &mut CharTraverser,
+    errors: &mut Vec<LexerError>,
+    i: usize,
+    quote: char,
+) {
     let dashes = input.count_next(|x| x == '-');
 
     let delim = match input.next() {
@@ -43,9 +58,24 @@ fn parse_raw_string(input: &mut CharTraverser, quote: char) {
             '{' => '}',
             '[' => ']',
             '|' => '|',
-            _ => panic!("Invalid delimiter"),
+            _ => {
+                errors.push(LexerError {
+                    message: "Invalid raw string delimiter",
+                    index: i,
+                });
+
+                parse_string_value(input, errors, i, quote);
+                return;
+            }
         },
-        None => panic!("Unterminated raw string"),
+        None => {
+            errors.push(LexerError {
+                message: "Unterminated raw string",
+                index: i,
+            });
+
+            return;
+        }
     };
 
     loop {
@@ -55,37 +85,73 @@ fn parse_raw_string(input: &mut CharTraverser, quote: char) {
         {
             break;
         } else if input.next().is_none() {
-            panic!("Unterminated raw string");
+            errors.push(LexerError {
+                message: "Unterminated raw string",
+                index: i,
+            });
+
+            return;
         }
     }
 }
 
-fn parse_string_value(input: &mut CharTraverser, quote: char) {
-    while let Some(x) = input.next() {
-        if x == quote {
-            break;
-        } else if x == '\\' {
-            input.next();
+/// Parse a string. This is also used to parse a symbol wrapped in backticks.
+fn parse_string_value(
+    input: &mut CharTraverser,
+    errors: &mut Vec<LexerError>,
+    i: usize,
+    quote: char,
+) {
+    loop {
+        if let Some(x) = input.next() {
+            if x == quote {
+                break;
+            } else if x == '\\' {
+                input.next();
+            }
+        } else {
+            errors.push(LexerError {
+                message: "Unterminated string",
+                index: i,
+            });
+
+            return;
         }
     }
 }
 
-fn parse_special_value(input: &mut CharTraverser) {
+/// Parse a special symbol (`%{x}%`)
+fn parse_special_value(input: &mut CharTraverser, errors: &mut Vec<LexerError>, i: usize) {
     input.next_while(|x| x != '%' && x != '\n');
 
     if input.next_if(|x| x == '%').is_none() {
-        panic!("Unterminated %");
+        errors.push(LexerError {
+            message: "Unterminated %",
+            index: i,
+        });
     }
 }
 
-fn parse_simple_symbol(input: &mut CharTraverser, char: char) -> TokenType {
+/// Parse a simple symbol (`+`, `<-`, etc.)
+fn parse_simple_symbol(
+    input: &mut CharTraverser,
+    errors: &mut Vec<LexerError>,
+    i: usize,
+    char: char,
+) -> TokenType {
     match char {
         '<' => match input.next_if_matches("=-<") {
             Some('=') => TokenType::LessThanEquals,
             Some('-') => TokenType::LeftAssign,
             Some('<') => match input.next_if_matches("-") {
                 Some('-') => TokenType::DoubleLeftAssign,
-                _ => panic!("Must be a symbol"),
+                _ => {
+                    errors.push(LexerError {
+                        message: "Invalid symbol",
+                        index: i,
+                    });
+                    TokenType::Error
+                }
             },
             _ => TokenType::LessThan,
         },
@@ -148,11 +214,18 @@ fn parse_simple_symbol(input: &mut CharTraverser, char: char) -> TokenType {
         '@' => TokenType::At,
         '\\' => TokenType::BackSlash,
         ',' => TokenType::Comma,
-        _ => panic!("Unrecognized symbol"),
+        _ => {
+            errors.push(LexerError {
+                message: "Invalid symbol",
+                index: i,
+            });
+            TokenType::Error
+        }
     }
 }
 
-fn get_token(input: &mut CharTraverser) -> Option<Token> {
+/// Get the next token
+fn get_token(input: &mut CharTraverser, errors: &mut Vec<LexerError>, i: usize) -> Option<Token> {
     let char = input.next()?;
 
     let result_type = match char {
@@ -179,15 +252,15 @@ fn get_token(input: &mut CharTraverser) -> Option<Token> {
             TokenType::Number
         }
         '"' | '\'' => {
-            parse_string_value(input, char);
+            parse_string_value(input, errors, i, char);
             TokenType::String
         }
         '%' => {
-            parse_special_value(input);
+            parse_special_value(input, errors, i);
             TokenType::Infix
         }
         '`' => {
-            parse_string_value(input, '`');
+            parse_string_value(input, errors, i, '`');
             TokenType::Symbol
         }
         '#' => {
@@ -197,7 +270,7 @@ fn get_token(input: &mut CharTraverser) -> Option<Token> {
         '_' | 'a'..='z' | 'A'..='Z' => {
             if char == 'r' || char == 'R' {
                 if let Some(x) = input.next_if_matches("\\\"") {
-                    parse_raw_string(input, x);
+                    parse_raw_string(input, errors, i, x);
                     TokenType::RawString
                 } else {
                     parse_symbol_value(input);
@@ -208,18 +281,31 @@ fn get_token(input: &mut CharTraverser) -> Option<Token> {
                 match_reserved(input.stored_string())
             }
         }
-        x => parse_simple_symbol(input, x),
+        x => parse_simple_symbol(input, errors, i, x),
     };
 
-    Some(Token::new(input.take_stored_string(), result_type))
+    let (string, span) = input.take_stored_string();
+    Some(Token::new(string, result_type, span))
 }
 
-pub fn lex(input: &str) -> Vec<Token> {
+/// Tokenizes the input string, including whitespace tokens
+pub fn lex(input: &str) -> (Vec<Token>, Vec<LexerError>) {
     let mut traverser = CharTraverser::new(input);
+    let mut errors = Vec::new();
+    let mut i = 0;
 
-    from_fn(|| get_token(&mut traverser)).collect::<Vec<Token>>()
+    (
+        from_fn(|| {
+            let result = get_token(&mut traverser, &mut errors, i);
+            i += 1;
+            result
+        })
+        .collect::<Vec<Token>>(),
+        errors,
+    )
 }
 
+/// Check if a symbol is a reserved word
 fn match_reserved(text: &str) -> TokenType {
     match text {
         "if" => TokenType::If,
