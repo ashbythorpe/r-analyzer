@@ -53,9 +53,9 @@ pub fn lex_and_parse(input: &str) -> Vec<Node> {
     let (parsed, errors) = parse(&mut tokens_iter);
 
     if errors.is_empty() {
-        // for node in &parsed {
-        //     println!("{}", node);
-        // }
+        for node in &parsed {
+            println!("{}", node);
+        }
     } else {
         for error in errors {
             match error.span {
@@ -98,6 +98,7 @@ pub fn parse(tokens: &mut Tokens) -> (Vec<Node>, Vec<ParseError>) {
             "Expected a newline or ';'",
         );
 
+        // Consume the token, if there is one
         next_token(tokens, false);
     }
 
@@ -204,7 +205,7 @@ fn parse_expr(
         } else {
             // Skip the token
             errors.push(ParseError::single("Unexpected token", start));
-            next_token(tokens, true);
+            next_token(tokens, true).expect("The token has already been peeked");
 
             return parse_expr(
                 tokens,
@@ -218,7 +219,7 @@ fn parse_expr(
         }
     }
 
-    let (start, token) = next_token(tokens, eat_lines).unwrap();
+    let (start, token) = next_token(tokens, eat_lines).expect("The token has already been peeked");
 
     let lhs = match token_type {
         // NUM_CONST, STR_CONST, NULL_CONST, PLACEHOLDER, SYMBOL,
@@ -307,7 +308,8 @@ fn parse_infix(
                 break;
             }
 
-            let (op_index, op) = next_token(tokens, eat_lines).unwrap();
+            let (op_index, op) =
+                next_token(tokens, eat_lines).expect("The token has already been peeked");
             let op = op.clone();
 
             lhs = match *op.token_type() {
@@ -559,7 +561,7 @@ fn parse_if_statement(
 
     match peek_token(tokens, eat_lines) {
         Some((_, token)) if token.token_type() == &TokenType::Else => {
-            next_token(tokens, eat_lines);
+            next_token(tokens, eat_lines).expect("The token has already been peeked");
             let (_, binding_power) = prefix_binding_power(&TokenType::Else).unwrap();
             let else_expr = parse_expr(
                 tokens,
@@ -898,7 +900,11 @@ fn expect_delim(
     loop {
         match peek_token(tokens, true) {
             Some((_, token)) if token.token_type() == &delim => {
-                end = Some(next_token(tokens, true).unwrap().0);
+                end = Some(
+                    next_token(tokens, true)
+                        .expect("The token has already been peeked")
+                        .0,
+                );
                 break;
             }
             Some((i, token)) if is_closing(token.token_type(), context) => {
@@ -915,7 +921,7 @@ fn expect_delim(
             }
         }
 
-        next_token(tokens, true).unwrap();
+        next_token(tokens, true).expect("The token has already been peeked");
     }
 
     end
@@ -953,7 +959,7 @@ fn peek_delims(
             }
             Some((i, _)) => {
                 errors.push(ParseError::single(error_message, i));
-                next_token(tokens, true);
+                next_token(tokens, true).expect("The token has already been peeked");
             }
         }
     }
@@ -973,7 +979,7 @@ fn parse_condition(
 
     let (start, _) = match peek_token(tokens, true) {
         Some((_, token)) if token.token_type() == &TokenType::LeftParen => {
-            next_token(tokens, true).unwrap()
+            next_token(tokens, true).expect("The token has already been peeked")
         }
         x => {
             errors.push(ParseError::new(
@@ -1016,7 +1022,7 @@ fn parse_for_condition(
 
     let (start, _) = match peek_token(tokens, true) {
         Some((_, token)) if token.token_type() == &TokenType::LeftParen => {
-            next_token(tokens, true).unwrap()
+            next_token(tokens, true).expect("The token has already been peeked")
         }
         x => {
             errors.push(ParseError::new(
@@ -1107,7 +1113,7 @@ fn parse_formlist(
 ) -> Node {
     let (start, _) = match peek_token(tokens, eat_lines_init) {
         Some((_, token)) if token.token_type() == &TokenType::LeftParen => {
-            next_token(tokens, true).unwrap()
+            next_token(tokens, true).expect("The token has already been peeked")
         }
         x => {
             errors.push(ParseError::new(
@@ -1209,7 +1215,7 @@ fn parse_list(
 
         match delim {
             Some((_, TokenType::Comma)) => {
-                next_token(tokens, true);
+                next_token(tokens, true).expect("The token has already been peeked");
             }
             Some((_, token_type)) if is_closing(&token_type, context) => break,
             Some(_) => {}
@@ -1253,11 +1259,12 @@ fn parse_sublist_item(
 
     let lhs = parse_expr(tokens, errors, 0, true, false, true, context);
 
-    let (equals_index, next) = peek_token(tokens, true).unwrap();
+    let equals_index = match peek_token(tokens, true) {
+        Some((index, token)) if token.token_type() == &TokenType::Equals => index,
+        _ => return Some(Node::wraps(NodeType::SubListItem, lhs)),
+    };
 
-    if next.token_type() != &TokenType::Equals {
-        return Some(Node::wraps(NodeType::SubListItem, lhs));
-    }
+    next_token(tokens, true).expect("The token has already been peeked");
 
     let lhs = if !matches!(
         lhs.node_type(),
@@ -1273,8 +1280,6 @@ fn parse_sublist_item(
     } else {
         lhs
     };
-
-    next_token(tokens, true);
 
     let start = lhs.start().unwrap_or(equals_index);
     if peek_token(tokens, true).is_some_and(|(_, token)| is_closing(token.token_type(), context)) {
@@ -1319,13 +1324,12 @@ fn parse_formlist_item(
         lhs
     };
 
-    let (equals_index, next) = peek_token(tokens, true).unwrap();
+    let equals_index = match peek_token(tokens, true) {
+        Some((index, token)) if token.token_type() == &TokenType::Equals => index,
+        _ => return Some(Node::wraps(NodeType::SubListItem, lhs)),
+    };
 
-    if next.token_type() != &TokenType::Equals {
-        return Some(Node::wraps(NodeType::FormListItem, lhs));
-    } else {
-        next_token(tokens, true);
-    }
+    next_token(tokens, true).expect("The token has already been peeked");
 
     let rhs = parse_expr(tokens, errors, 0, true, true, true, context);
 
