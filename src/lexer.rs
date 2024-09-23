@@ -214,6 +214,7 @@ fn parse_simple_symbol(
         '@' => TokenType::At,
         '\\' => TokenType::BackSlash,
         ',' => TokenType::Comma,
+        ';' => TokenType::SemiColon,
         _ => {
             errors.push(LexerError {
                 message: "Invalid symbol",
