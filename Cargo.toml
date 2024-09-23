@@ -6,3 +6,6 @@ edition = "2021"
 [profile.perf]
 inherits = "release"
 debug = true
+
+[dependencies]
+ropey = "1.6.1"

@@ -1,8 +1,10 @@
 use std::iter::from_fn;
 
+use ropey::Rope;
+
 use crate::grammar::{Token, TokenType, NA};
 
-use crate::peeking_chars::CharTraverser;
+use crate::char_traverser::CharTraverser;
 
 pub struct LexerError {
     pub message: &'static str,
@@ -290,7 +292,7 @@ fn get_token(input: &mut CharTraverser, errors: &mut Vec<LexerError>, i: usize) 
 }
 
 /// Tokenizes the input string, including whitespace tokens
-pub fn lex(input: &str) -> (Vec<Token>, Vec<LexerError>) {
+pub fn lex(input: &Rope) -> (Vec<Token>, Vec<LexerError>) {
     let mut traverser = CharTraverser::new(input);
     let mut errors = Vec::new();
     let mut i = 0;

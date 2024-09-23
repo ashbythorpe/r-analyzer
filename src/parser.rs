@@ -2,6 +2,8 @@ use core::panic;
 use std::iter::{Enumerate, Peekable};
 use std::slice::Iter;
 
+use ropey::Rope;
+
 use crate::grammar::{Span, Token, TokenType};
 
 use crate::lexer::lex;
@@ -36,7 +38,7 @@ impl ParseError {
     }
 }
 
-pub fn lex_and_parse(input: &str) -> Vec<Node> {
+pub fn lex_and_parse(input: &Rope) -> Vec<Node> {
     let (tokens, errors) = lex(input);
 
     for error in errors {

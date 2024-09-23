@@ -1,4 +1,4 @@
-use std::str::Chars;
+use ropey::{iter::Chars, Rope};
 
 use crate::grammar::FileSpan;
 
@@ -14,7 +14,7 @@ pub struct CharTraverser<'a> {
 }
 
 impl<'a> CharTraverser<'a> {
-    pub fn new(input: &'a str) -> Self {
+    pub fn new(input: &'a Rope) -> Self {
         CharTraverser {
             chars: input.chars(),
             stored_string: String::new(),
