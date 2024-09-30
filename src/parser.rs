@@ -38,7 +38,7 @@ impl ParseError {
     }
 }
 
-pub fn lex_and_parse(input: &Rope) -> Vec<Node> {
+pub fn lex_and_parse(input: &Rope) -> Node {
     let (tokens, errors) = lex(input);
 
     for error in errors {
@@ -53,7 +53,7 @@ pub fn lex_and_parse(input: &Rope) -> Vec<Node> {
     let (parsed, errors) = parse(&tokens);
 
     if errors.is_empty() {
-        for node in &parsed {
+        for node in parsed.children() {
             println!("{}", node);
         }
     } else {
@@ -80,11 +80,15 @@ pub fn lex_and_parse(input: &Rope) -> Vec<Node> {
 /// This function parses the `prog` item of the grammar, defined as:
 ///
 /// END_OF_INPUT | '\n' | expr_or_assign_or_help '\n' | expr_or_assign_or_help ';' | error
-pub fn parse(tokens: &Vec<Token>) -> (Vec<Node>, Vec<ParseError>) {
+pub fn parse(tokens: &Vec<Token>) -> (Node, Vec<ParseError>) {
     let mut tokens = tokens.iter().enumerate().peekable();
 
     let mut exprs = Vec::new();
     let mut errors = Vec::new();
+
+    if let Some(node) = get_initial_whitespace(&mut tokens) {
+        exprs.push(node);
+    }
 
     while peek_token(&mut tokens, true).is_some() {
         exprs.push(parse_expr(
@@ -102,13 +106,49 @@ pub fn parse(tokens: &Vec<Token>) -> (Vec<Node>, Vec<ParseError>) {
         }
     }
 
-    (exprs, errors)
+    let first_nonempty = exprs.iter().find(|x| !x.is_empty());
+    let last_nonempty = exprs.iter().rev().find(|x| !x.is_empty());
+
+    let final_node = match (first_nonempty, last_nonempty) {
+        (Some(first), Some(last)) => Node::ok(
+            NodeType::File,
+            Span::between(first.span(), last.span()),
+            exprs,
+        ),
+        _ => Node::empty(NodeType::File),
+    };
+
+    (final_node, errors)
 }
 
-pub fn get_whitespace_after_expr(
-    tokens: &mut Tokens,
-    errors: &mut Vec<ParseError>,
-) -> Option<Node> {
+fn get_initial_whitespace(tokens: &mut Tokens) -> Option<Node> {
+    let mut start = None;
+    let mut end = None;
+    while let Some((i, token)) = tokens.peek() {
+        if *token.token_type() == TokenType::WhiteSpace
+            || *token.token_type() == TokenType::Comment
+            || *token.token_type() == TokenType::NewLine
+        {
+            start = start.or(Some(*i));
+            end = Some(*i);
+
+            next_token(tokens, true).expect("The token has already been peeked");
+        } else {
+            break;
+        }
+    }
+
+    match (start, end) {
+        (Some(start), Some(end)) => Some(Node::ok(
+            NodeType::WhiteSpace,
+            Span::new(start, end),
+            vec![],
+        )),
+        _ => None,
+    }
+}
+
+fn get_whitespace_after_expr(tokens: &mut Tokens, errors: &mut Vec<ParseError>) -> Option<Node> {
     let start = match tokens.peek() {
         Some((i, _)) => *i,
         None => return None,

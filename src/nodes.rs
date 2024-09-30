@@ -125,7 +125,6 @@ pub enum NodeType {
     Null,
     Placeholder,
     PrefixCall,
-    InfixCall { value: Token },
     Parentheses,
     Braces,
     If,
@@ -138,8 +137,6 @@ pub enum NodeType {
     Call,
     Subset,
     Index,
-    Assign,
-    Help,
     NameSpace { internal: bool },
     Extract,
     Binary { op: Token },
@@ -148,6 +145,8 @@ pub enum NodeType {
     FormListItem,
     SubList,
     SubListItem,
+    WhiteSpace,
+    File,
 }
 
 /// Parse a node that is made up of a single token (the leaves of the syntax tree).
