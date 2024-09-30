@@ -303,7 +303,7 @@ pub fn lex(input: &Rope) -> (Vec<Token>, Vec<LexerError>) {
             i += 1;
             result
         })
-        .collect::<Vec<Token>>(),
+        .collect(),
         errors,
     )
 }

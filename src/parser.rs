@@ -50,9 +50,7 @@ pub fn lex_and_parse(input: &Rope) -> Vec<Node> {
     //     println!("{}. {:?}", start + i, token);
     // }
 
-    let mut tokens_iter = tokens.iter().enumerate().peekable();
-
-    let (parsed, errors) = parse(&mut tokens_iter);
+    let (parsed, errors) = parse(&tokens);
 
     if errors.is_empty() {
         for node in &parsed {
@@ -82,7 +80,8 @@ pub fn lex_and_parse(input: &Rope) -> Vec<Node> {
 /// This function parses the `prog` item of the grammar, defined as:
 ///
 /// END_OF_INPUT | '\n' | expr_or_assign_or_help '\n' | expr_or_assign_or_help ';' | error
-pub fn parse(tokens: &mut Tokens) -> (Vec<Node>, Vec<ParseError>) {
+pub fn parse(tokens: &Vec<Token>) -> (Vec<Node>, Vec<ParseError>) {
+    let mut tokens = tokens.iter().enumerate().peekable();
     let mut exprs = Vec::new();
     let mut errors = Vec::new();
 
