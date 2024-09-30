@@ -82,28 +82,79 @@ pub fn lex_and_parse(input: &Rope) -> Vec<Node> {
 /// END_OF_INPUT | '\n' | expr_or_assign_or_help '\n' | expr_or_assign_or_help ';' | error
 pub fn parse(tokens: &Vec<Token>) -> (Vec<Node>, Vec<ParseError>) {
     let mut tokens = tokens.iter().enumerate().peekable();
+
     let mut exprs = Vec::new();
     let mut errors = Vec::new();
 
-    while peek_token(tokens, true).is_some() {
-        exprs.push(parse_expr(tokens, &mut errors, 0, false, true, true, &[]));
-
-        // Works since this does not produce an error if there is no next token
-        peek_delims(
-            tokens,
+    while peek_token(&mut tokens, true).is_some() {
+        exprs.push(parse_expr(
+            &mut tokens,
             &mut errors,
-            &[TokenType::NewLine, TokenType::SemiColon],
+            0,
+            false,
+            true,
+            true,
             &[],
-            false,
-            false,
-            "Expected a newline or ';'",
-        );
+        ));
 
-        // Consume the token, if there is one
-        next_token(tokens, false);
+        if let Some(node) = get_whitespace_after_expr(&mut tokens, &mut errors) {
+            exprs.push(node);
+        }
     }
 
     (exprs, errors)
+}
+
+pub fn get_whitespace_after_expr(
+    tokens: &mut Tokens,
+    errors: &mut Vec<ParseError>,
+) -> Option<Node> {
+    let start = match tokens.peek() {
+        Some((i, _)) => *i,
+        None => return None,
+    };
+
+    let mut end = start;
+    let mut error = false;
+
+    loop {
+        match peek_token(tokens, false) {
+            Some((i, token))
+                if *token.token_type() == TokenType::SemiColon
+                    || *token.token_type() == TokenType::NewLine =>
+            {
+                end = i;
+            }
+            None => {
+                break;
+            }
+            Some((i, _)) => {
+                errors.push(ParseError::single("Expected a newline or ';", i));
+                next_token(tokens, true).expect("The token has already been peeked");
+                end = i;
+                error = true;
+            }
+        }
+    }
+
+    while let Some((i, token)) = tokens.peek() {
+        if *token.token_type() == TokenType::WhiteSpace
+            || *token.token_type() == TokenType::Comment
+            || *token.token_type() == TokenType::NewLine
+        {
+            end = *i;
+            next_token(tokens, true).expect("The token has already been peeked");
+        } else {
+            break;
+        }
+    }
+
+    Some(Node::new(
+        NodeType::WhiteSpace,
+        Span::new(start, end),
+        vec![],
+        error,
+    ))
 }
 
 /// Get the next token, skipping whitespace. If `eat_lines` is true, then skip newlines as well.
@@ -452,7 +503,6 @@ fn parse_braces(
             ],
             context,
             false,
-            true,
             "Expected a newline, '}' or ';'",
         ) {};
     }
@@ -930,17 +980,12 @@ fn expect_delim(
 
 /// A version of [expect_delim()] that looks for a set of delimiters, returning the type that is
 /// found.
-///
-/// `error_on_eof` controls whether an error is created if the end of the
-/// file is reached. The function will not produce an error if a closing
-/// delimiter is found.
 fn peek_delims(
     tokens: &mut Tokens,
     errors: &mut Vec<ParseError>,
     delims: &[TokenType],
     context: &[TokenType],
     eat_lines: bool,
-    error_on_eof: bool,
     error_message: &'static str,
 ) -> Option<(usize, TokenType)> {
     loop {
@@ -952,10 +997,6 @@ fn peek_delims(
                 return None;
             }
             None => {
-                if error_on_eof {
-                    errors.push(ParseError::at_end(error_message));
-                }
-
                 return None;
             }
             Some((i, _)) => {
@@ -1205,7 +1246,6 @@ fn parse_list(
             errors,
             delims,
             context,
-            true,
             true,
             if square {
                 "Expected ']' or ','"
