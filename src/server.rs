@@ -1,22 +1,51 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use lsp_types::TextDocumentContentChangeEvent;
 use ropey::Rope;
-use url::Url;
 
-use crate::file::SourceFile;
+use crate::{
+    description::{find_description, DescriptionFile},
+    file::SourceFile,
+    package_index::{get_package_index, installed_packages, PackageIndex},
+    utils::parse_url,
+};
 
 pub struct Server {
     files: HashMap<Utf8PathBuf, SourceFile>,
+    description: Option<DescriptionFile>,
+    package_index: PackageIndex,
+    installed_packages: HashMap<String, PathBuf>,
 }
 
 impl Server {
-    pub fn new() -> Self {
+    pub fn new(
+        description: Option<DescriptionFile>,
+        package_index: PackageIndex,
+        installed_packages: HashMap<String, PathBuf>,
+    ) -> Self {
         Self {
             files: HashMap::new(),
+            description,
+            package_index,
+            installed_packages,
         }
+    }
+
+    pub fn initialize(params: lsp_types::InitializeParams) -> Result<Self> {
+        #[allow(deprecated)]
+        let description = if let Some(root_path) = params.root_uri {
+            find_description(parse_url(root_path)?)?
+        } else {
+            None
+        };
+
+        let package_index = get_package_index(&description)?;
+
+        let installed_packages = installed_packages()?;
+
+        Ok(Self::new(description, package_index, installed_packages))
     }
 
     pub fn add_file(&mut self, uri: lsp_types::Uri, text: Rope) -> anyhow::Result<()> {
@@ -36,9 +65,11 @@ impl Server {
 
     pub fn update_file(
         &mut self,
-        path: Utf8PathBuf,
+        path: lsp_types::Uri,
         changes: Vec<TextDocumentContentChangeEvent>,
     ) -> Result<()> {
+        let path = parse_url(path)?;
+
         let file = self
             .files
             .get_mut(&path)
@@ -48,17 +79,11 @@ impl Server {
 
         Ok(())
     }
-}
 
-fn parse_url(uri: lsp_types::Uri) -> anyhow::Result<Utf8PathBuf> {
-    let url = Url::parse(uri.as_str())?;
+    pub fn remove_file(&mut self, uri: lsp_types::Uri) -> anyhow::Result<()> {
+        let path = parse_url(uri)?;
+        self.files.remove(&path);
 
-    let path = match url.to_file_path() {
-        Ok(x) => x,
-        Err(_) => {
-            return Err(anyhow::anyhow!("Invalid file path: {:?}", url));
-        }
-    };
-
-    Ok(camino::absolute_utf8(&path)?)
+        Ok(())
+    }
 }

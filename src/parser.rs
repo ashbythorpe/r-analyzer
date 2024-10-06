@@ -80,7 +80,7 @@ pub fn lex_and_parse(input: &Rope) -> Node {
 /// This function parses the `prog` item of the grammar, defined as:
 ///
 /// END_OF_INPUT | '\n' | expr_or_assign_or_help '\n' | expr_or_assign_or_help ';' | error
-pub fn parse(tokens: &Vec<Token>) -> (Node, Vec<ParseError>) {
+pub fn parse(tokens: &[Token]) -> (Node, Vec<ParseError>) {
     let mut tokens = tokens.iter().enumerate().peekable();
 
     let mut exprs = Vec::new();
@@ -132,7 +132,7 @@ fn get_initial_whitespace(tokens: &mut Tokens) -> Option<Node> {
             start = start.or(Some(*i));
             end = Some(*i);
 
-            next_token(tokens, true).expect("The token has already been peeked");
+            tokens.next().expect("Token has already been peeked");
         } else {
             break;
         }
@@ -183,7 +183,7 @@ fn get_whitespace_after_expr(tokens: &mut Tokens, errors: &mut Vec<ParseError>) 
             || *token.token_type() == TokenType::NewLine
         {
             end = *i;
-            next_token(tokens, true).expect("The token has already been peeked");
+            tokens.next().expect("Token has already been peeked");
         } else {
             break;
         }

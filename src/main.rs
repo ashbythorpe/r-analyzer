@@ -1,30 +1,34 @@
 use core::panic;
 
+use handlers::document_symbols::document_symbols;
+use handlers::{document_symbols, expand_selection};
 use server::Server;
 
 use anyhow::Result;
-use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId};
+use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{self};
-use lsp_types::request as lsp_request;
+use lsp_types::{request as lsp_request, WorkspaceEdit};
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 use ropey::Rope;
-use url::Url;
 
 #[macro_use]
 mod macros;
 
 mod char_traverser;
 mod cursor;
+mod description;
 pub mod file;
 mod format;
 mod grammar;
 mod handlers;
 mod lexer;
 pub mod nodes;
+mod package_index;
 mod parser;
 mod server;
+mod utils;
 
 fn main() -> Result<()> {
     let (connection, io_threads) = Connection::stdio();
@@ -52,7 +56,7 @@ fn main() -> Result<()> {
 }
 
 fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
-    let mut server = Server::new();
+    let mut server = Server::initialize(params)?;
 
     for message in &connection.receiver {
         match message {
@@ -68,6 +72,20 @@ fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
                     "textDocument/selectionRange" => {
                         let (id, params) =
                             cast_request::<lsp_request::SelectionRangeRequest>(request)?;
+
+                        let result = expand_selection::selection_range(&server, params)?;
+                        let response = Response::new_ok(id, result);
+
+                        connection.sender.send(Message::Response(response))?;
+                    }
+                    "textDocument/documentSymbol" => {
+                        let (id, params) =
+                            cast_request::<lsp_request::DocumentSymbolRequest>(request)?;
+
+                        let result = document_symbols(&server, params)?;
+                        let response = Response::new_ok(id, result);
+
+                        connection.sender.send(Message::Response(response))?;
                     }
                     _ => {
                         return Err(anyhow::anyhow!("Unexpected request: {:?}", request));
@@ -84,23 +102,19 @@ fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
 
                     let document = params.text_document;
 
-                    server.add_file(document.uri, Rope::from(document.text));
+                    server.add_file(document.uri, Rope::from(document.text))?;
                 }
                 "textDocument/didChange" => {
                     let params =
                         cast_notification::<notification::DidChangeTextDocument>(notification)?;
 
-                    let document = params.text_document;
-                    let url = Url::parse(document.uri.as_str())?;
-                    let path = match url.to_file_path() {
-                        Ok(x) => x,
-                        Err(_) => {
-                            return Err(anyhow::anyhow!("Invalid file path: {:?}", url));
-                        }
-                    };
+                    server.update_file(params.text_document.uri, params.content_changes)?
+                }
+                "textDocument/didClose" => {
+                    let params =
+                        cast_notification::<notification::DidCloseTextDocument>(notification)?;
 
-                    let absolute_path = camino::absolute_utf8(&path)?;
-                    server.update_file(absolute_path, params.content_changes)?
+                    server.remove_file(params.text_document.uri)?;
                 }
                 _ => {
                     return Err(anyhow::anyhow!(

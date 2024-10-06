@@ -1,3 +1,6 @@
+use lsp_types::{Position, Range};
+use ropey::Rope;
+
 /// Describes a token
 #[derive(PartialEq, Debug, Eq, Clone)]
 pub struct Token {
@@ -13,31 +16,99 @@ pub struct Span {
     end: usize,
 }
 
+/// Describes a position in a file
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+pub struct FilePosition {
+    pub line: usize,
+    pub column: usize,
+}
+
 /// Describes a span of text in a file
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct FileSpan {
-    start_line: usize,
-    start_column: usize,
-    end_line: usize,
-    end_column: usize,
+    pub start: FilePosition,
+    pub end: FilePosition,
 }
 
 impl FileSpan {
     pub fn new(start_line: usize, start_column: usize, end_line: usize, end_column: usize) -> Self {
         Self {
-            start_line,
-            start_column,
-            end_line,
-            end_column,
+            start: FilePosition::new(start_line, start_column),
+            end: FilePosition::new(end_line, end_column),
         }
     }
 
-    pub fn start(&self) -> (usize, usize) {
-        (self.start_line, self.start_column)
+    pub fn single(line: usize, column: usize) -> Self {
+        Self::new(line, column, line, column)
     }
 
-    pub fn end(&self) -> (usize, usize) {
-        (self.end_line, self.end_column)
+    pub fn between(x: FilePosition, y: FilePosition) -> Self {
+        Self { start: x, end: y }
+    }
+
+    pub fn get_char_span(&self, content: &Rope) -> (usize, usize) {
+        let start = content.line_to_char(self.start.line) + self.start.column;
+        let end = content.line_to_char(self.end.line) + self.end.column;
+        (start, end)
+    }
+
+    pub fn between_spans(x: &FileSpan, y: &FileSpan) -> Self {
+        Self {
+            start: x.start,
+            end: y.end,
+        }
+    }
+
+    pub fn contains(&self, position: FilePosition) -> bool {
+        position >= self.start && position <= self.end
+    }
+
+    pub fn covers(&self, span: FileSpan) -> bool {
+        span.start >= self.start && span.end <= self.end
+    }
+}
+
+impl FilePosition {
+    pub fn new(line: usize, column: usize) -> Self {
+        Self { line, column }
+    }
+
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
+    pub fn column(&self) -> usize {
+        self.column
+    }
+}
+
+impl From<Position> for FilePosition {
+    fn from(value: Position) -> Self {
+        Self {
+            line: value.line as usize,
+            column: value.character as usize,
+        }
+    }
+}
+
+impl From<FilePosition> for Position {
+    fn from(val: FilePosition) -> Self {
+        Position::new(val.line as u32, val.column as u32)
+    }
+}
+
+impl From<Range> for FileSpan {
+    fn from(from: Range) -> Self {
+        Self {
+            start: from.start.into(),
+            end: from.end.into(),
+        }
+    }
+}
+
+impl From<FileSpan> for Range {
+    fn from(val: FileSpan) -> Self {
+        Range::new(val.start.into(), val.end.into())
     }
 }
 
@@ -140,8 +211,16 @@ impl Token {
         &self.content
     }
 
+    pub fn span(&self) -> &FileSpan {
+        &self.span
+    }
+
     pub fn is_keyword(&self) -> bool {
         matches!(self.token_type, keywords!())
+    }
+
+    pub fn is_error(&self) -> bool {
+        matches!(self.token_type, TokenType::Error)
     }
 
     pub fn is_prefix_operator(&self) -> bool {
@@ -238,5 +317,13 @@ impl Span {
 
     pub fn slice<'a, T>(&self, x: &'a [T]) -> &'a [T] {
         &x[self.start..self.end]
+    }
+
+    pub fn iter(&self) -> std::ops::Range<usize> {
+        self.start..self.end
+    }
+
+    pub fn contains(&self, x: usize) -> bool {
+        self.start <= x && x <= self.end
     }
 }

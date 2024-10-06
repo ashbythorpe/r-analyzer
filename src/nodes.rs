@@ -1,6 +1,6 @@
 use std::{fmt::Display, iter::Peekable, str::Chars};
 
-use crate::grammar::{Span, Token, TokenType};
+use crate::grammar::{FilePosition, FileSpan, Span, Token, TokenType};
 
 /// A node of the syntax tree
 #[derive(Debug)]
@@ -110,18 +110,53 @@ impl Node {
     pub fn is_empty(&self) -> bool {
         self.empty
     }
+
+    pub fn relevent_tokens<'a>(&self, tokens: &'a [Token]) -> Vec<&'a Token> {
+        if self.is_empty() {
+            panic!("Cannot call relevent_tokens on an empty node");
+        }
+
+        self.span
+            .iter()
+            .filter(|x| self.children.iter().any(|y| y.span().contains(*x)))
+            .map(|x| &tokens[x])
+            .collect()
+    }
+
+    pub fn text_span(&self, tokens: &[Token]) -> Option<FileSpan> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let tokens_slice = self.span.slice(tokens);
+
+        match (tokens_slice.first(), tokens_slice.last()) {
+            (Some(first), Some(last)) => Some(FileSpan::between_spans(first.span(), last.span())),
+            _ => None,
+        }
+    }
+
+    pub fn contains(&self, position: FilePosition, tokens: &[Token]) -> bool {
+        self.text_span(tokens).is_some_and(|x| x.contains(position))
+    }
+
+    pub fn covers(&self, span: FileSpan, tokens: &[Token]) -> bool {
+        self.text_span(tokens).is_some_and(|x| x.covers(span))
+    }
+
+    pub fn is_leaf(&self) -> bool {
+        self.children.is_empty()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum NodeType {
-    WhiteSpace,
     Condition,
-    Separator,
-    ExprList,
     Expr,
     Symbol { value: String },
     LiteralNumber,
     LiteralString { value: String },
+    LiteralBool,
     Null,
     Placeholder,
     PrefixCall,
@@ -152,12 +187,10 @@ pub enum NodeType {
 /// Parse a node that is made up of a single token (the leaves of the syntax tree).
 pub fn atom(token: &Token) -> Option<NodeType> {
     match *token.token_type() {
-        TokenType::Number
-        | TokenType::NaN
-        | TokenType::Inf
-        | TokenType::NA(_)
-        | TokenType::True
-        | TokenType::False => Some(NodeType::LiteralNumber),
+        TokenType::Number | TokenType::NaN | TokenType::Inf | TokenType::NA(_) => {
+            Some(NodeType::LiteralNumber)
+        }
+        TokenType::True | TokenType::False => Some(NodeType::LiteralBool),
         TokenType::String => Some(NodeType::LiteralString {
             value: parse_string(token, false),
         }),
