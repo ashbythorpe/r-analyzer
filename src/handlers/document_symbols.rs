@@ -18,7 +18,7 @@ pub fn document_symbols(
 
     let root = file.get_parse_tree();
 
-    let children: Vec<_> = root.children().iter().filter(|x| !x.is_error()).collect();
+    let children: Vec<_> = root.children().filter(|x| !x.is_error()).collect();
 
     let mut document_symbols = Vec::new();
 
@@ -34,7 +34,7 @@ pub fn document_symbols(
 
 pub fn get_parts(node: &Node) -> Option<(&Node, &Node)> {
     let binary_op = match node.node_type() {
-        NodeType::Binary { op: x } => x,
+        NodeType::Binary { op: x, .. } => x,
         _ => return None,
     };
 
@@ -104,14 +104,11 @@ fn get_detail(file: &SourceFile, name: &str, node: &Node) -> Option<String> {
         return None;
     }
 
-    let params = Itertools::intersperse_with(
-        params
-            .children()
-            .iter()
-            .filter_map(|x| format_param(file, x)),
-        || ", ".to_string(),
-    )
-    .collect::<String>();
+    let params = params
+        .children()
+        .iter()
+        .filter_map(|x| format_param(file, x))
+        .join(", ");
 
     Some(format!("{}({})", name, params))
 }
@@ -148,6 +145,6 @@ fn get_type(node: &Node) -> lsp_types::SymbolKind {
         NodeType::LiteralString { value: _ } => lsp_types::SymbolKind::STRING,
         NodeType::LiteralNumber => lsp_types::SymbolKind::NUMBER,
         NodeType::LiteralBool => lsp_types::SymbolKind::BOOLEAN,
-        _ => lsp_types::SymbolKind::OBJECT,
+        _ => lsp_types::SymbolKind::VARIABLE,
     }
 }

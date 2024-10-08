@@ -7,7 +7,7 @@ use ropey::Rope;
 use crate::grammar::{Span, Token, TokenType};
 
 use crate::lexer::lex;
-use crate::nodes::{self, Node, NodeType};
+use crate::nodes::{self, EmptyNodeType, Node, NodeType};
 
 type Tokens<'a> = Peekable<Enumerate<Iter<'a, Token>>>;
 
@@ -106,16 +106,19 @@ pub fn parse(tokens: &[Token]) -> (Node, Vec<ParseError>) {
         }
     }
 
-    let first_nonempty = exprs.iter().find(|x| !x.is_empty());
-    let last_nonempty = exprs.iter().rev().find(|x| !x.is_empty());
+    let start = exprs.iter().find(|x| !x.is_empty()).and_then(|x| x.span());
+    let end = exprs
+        .iter()
+        .rev()
+        .find(|x| !x.is_empty())
+        .and_then(|x| x.span());
 
-    let final_node = match (first_nonempty, last_nonempty) {
-        (Some(first), Some(last)) => Node::ok(
-            NodeType::File,
-            Span::between(first.span(), last.span()),
-            exprs,
-        ),
-        _ => Node::empty(NodeType::File),
+    let final_node = match (start, end) {
+        (Some(start), Some(end)) => {
+            let span = Span::between(start, end);
+            Node::non_empty(NodeType::File { expr: exprs }, span)
+        }
+        _ => Node::empty(EmptyNodeType::File),
     };
 
     (final_node, errors)
@@ -139,11 +142,9 @@ fn get_initial_whitespace(tokens: &mut Tokens) -> Option<Node> {
     }
 
     match (start, end) {
-        (Some(start), Some(end)) => Some(Node::ok(
-            NodeType::WhiteSpace,
-            Span::new(start, end),
-            vec![],
-        )),
+        (Some(start), Some(end)) => {
+            Some(Node::non_empty(NodeType::WhiteSpace, Span::new(start, end)))
+        }
         _ => None,
     }
 }
@@ -189,12 +190,13 @@ fn get_whitespace_after_expr(tokens: &mut Tokens, errors: &mut Vec<ParseError>) 
         }
     }
 
-    Some(Node::new(
-        NodeType::WhiteSpace,
-        Span::new(start, end),
-        vec![],
-        error,
-    ))
+    let result = Node::non_empty(NodeType::WhiteSpace, Span::new(start, end));
+
+    if error {
+        Some(result.as_error())
+    } else {
+        Some(result)
+    }
 }
 
 /// Get the next token, skipping whitespace. If `eat_lines` is true, then skip newlines as well.
@@ -254,7 +256,7 @@ fn parse_expr(
         Some(x) => x,
         None => {
             errors.push(ParseError::at_end("Expected expression"));
-            return Node::empty(NodeType::Expr);
+            return Node::empty(EmptyNodeType::Expr);
         }
     };
 
@@ -277,12 +279,12 @@ fn parse_expr(
         if is_closing(token.token_type(), context) {
             // step out - let the token close what it closes
             errors.push(ParseError::single("Expected expression", start));
-            return Node::empty(NodeType::Expr);
+            return Node::empty(EmptyNodeType::Expr);
         } else if infix_binding_power(token.token_type()).is_some() {
             // Parse the infix expression, using an empty node as the lhs
             errors.push(ParseError::single("Expected expression", start));
 
-            let lhs = Node::empty(NodeType::Expr);
+            let lhs = Node::empty(EmptyNodeType::Expr);
             return parse_infix(
                 tokens,
                 errors,
@@ -315,10 +317,9 @@ fn parse_expr(
 
     let lhs = match token_type {
         // NUM_CONST, STR_CONST, NULL_CONST, PLACEHOLDER, SYMBOL,
-        atoms!() => Node::ok(
+        atoms!() => Node::non_empty(
             nodes::atom(token).expect("Node must be an atom"),
             Span::single(start),
-            Vec::new(),
         ),
         prefix_operators!() | TokenType::Help => {
             parse_prefix(tokens, errors, context, &token_type, start, eat_lines)
@@ -437,6 +438,7 @@ fn parse_infix(
                     errors,
                     context,
                     op,
+                    op_index,
                     lhs,
                     right_binding_power,
                     eat_lines,
@@ -486,10 +488,11 @@ fn parse_prefix(
         context,
     );
 
-    Node::ok(
-        NodeType::PrefixCall,
-        Span::new(start, rhs.end().unwrap_or(start)),
-        vec![rhs],
+    let end = rhs.end().unwrap_or(start);
+
+    Node::non_empty(
+        NodeType::PrefixCall { rhs: Box::new(rhs) },
+        Span::new(start, end),
     )
 }
 
@@ -557,10 +560,8 @@ fn parse_braces(
 
     let end = delim_end.unwrap_or(exprs.last().and_then(|x| x.end()).unwrap_or(start));
 
-    Node::new(
-        NodeType::Braces,
-        Span::new(start, end),
-        exprs,
+    error_if(
+        Node::non_empty(NodeType::Braces { exprs }, Span::new(start, end)),
         delim_end.is_none(),
     )
 }
@@ -586,10 +587,14 @@ fn parse_brackets(
     );
 
     let end = delim_end.unwrap_or(inner.end().unwrap_or(start));
-    Node::new(
-        NodeType::Parentheses,
-        Span::new(start, end),
-        vec![inner],
+
+    error_if(
+        Node::non_empty(
+            NodeType::Parentheses {
+                contents: Box::new(inner),
+            },
+            Span::new(start, end),
+        ),
         delim_end.is_some(),
     )
 }
@@ -616,7 +621,14 @@ fn parse_function(
     let body = parse_expr(tokens, errors, 4, eat_lines, true, true, context);
 
     let end = body.end().unwrap_or(args.end().unwrap_or(start));
-    Node::ok(NodeType::Function, Span::new(start, end), vec![args, body])
+
+    Node::non_empty(
+        NodeType::Function {
+            args: Box::new(args),
+            body: Box::new(body),
+        },
+        Span::new(start, end),
+    )
 }
 
 /// Parses an if statement, defined as the following expressions:
@@ -664,16 +676,24 @@ fn parse_if_statement(
                 context,
             );
 
-            Node::ok(
-                NodeType::If,
-                Span::new(start, else_expr.end().unwrap_or(current_end)),
-                vec![condition, expr, else_expr],
+            let end = else_expr.end().unwrap_or(current_end);
+
+            Node::non_empty(
+                NodeType::If {
+                    condition: Box::new(condition),
+                    consequent_expr: Box::new(expr),
+                    alternative_expr: Some(Box::new(else_expr)),
+                },
+                Span::new(start, end),
             )
         }
-        _ => Node::ok(
-            NodeType::If,
+        _ => Node::non_empty(
+            NodeType::If {
+                condition: Box::new(condition),
+                consequent_expr: Box::new(expr),
+                alternative_expr: None,
+            },
             Span::new(start, current_end),
-            vec![condition, expr],
         ),
     }
 }
@@ -707,7 +727,13 @@ fn parse_for_statement(
 
     let end = expr.end().unwrap_or(condition.end().unwrap_or(start));
 
-    Node::ok(NodeType::For, Span::new(start, end), vec![condition, expr])
+    Node::non_empty(
+        NodeType::For {
+            condition: Box::new(condition),
+            expr: Box::new(expr),
+        },
+        Span::new(start, end),
+    )
 }
 
 /// Parse a while statement, defined as:
@@ -726,10 +752,12 @@ fn parse_while_statement(
 
     let end = expr.end().unwrap_or(condition.end().unwrap_or(start));
 
-    Node::ok(
-        NodeType::While,
+    Node::non_empty(
+        NodeType::While {
+            condition: Box::new(condition),
+            expr: Box::new(expr),
+        },
         Span::new(start, end),
-        vec![condition, expr],
     )
 }
 
@@ -756,7 +784,12 @@ fn parse_repeat_statement(
 
     let end = expr.end().unwrap_or(start);
 
-    Node::ok(NodeType::Repeat, Span::new(start, end), vec![expr])
+    Node::non_empty(
+        NodeType::Repeat {
+            expr: Box::new(expr),
+        },
+        Span::new(start, end),
+    )
 }
 
 fn parse_call(
@@ -768,17 +801,27 @@ fn parse_call(
     start: usize,
     bracket_index: usize,
 ) -> Node {
-    let node_type = if square {
-        NodeType::Subset
-    } else {
-        NodeType::Call
-    };
-
     let rhs = parse_sublist(tokens, errors, context, square, bracket_index);
 
     let end = rhs.end().unwrap_or(bracket_index);
 
-    Node::ok(node_type, Span::new(start, end), vec![lhs, rhs])
+    if square {
+        Node::non_empty(
+            NodeType::Subset {
+                lhs: Box::new(lhs),
+                args: Box::new(rhs),
+            },
+            Span::new(start, end),
+        )
+    } else {
+        Node::non_empty(
+            NodeType::Call {
+                function: Box::new(lhs),
+                args: Box::new(rhs),
+            },
+            Span::new(start, end),
+        )
+    }
 }
 
 /// Parse an indexing (`[[]]`) operation, defined as:
@@ -806,10 +849,14 @@ fn parse_index(
 
     let end = second_square.unwrap_or(rhs.end().unwrap_or(start));
 
-    Node::new(
-        NodeType::Index,
-        Span::new(start, end),
-        vec![lhs, rhs],
+    error_if(
+        Node::non_empty(
+            NodeType::Index {
+                lhs: Box::new(lhs),
+                args: Box::new(rhs),
+            },
+            Span::new(start, end),
+        ),
         second_square.is_none(),
     )
 }
@@ -838,10 +885,13 @@ fn parse_namespace(
         &NodeType::Symbol { .. } | &NodeType::LiteralString { .. }
     ) {
         // Turn the lhs into an error node
-        errors.push(ParseError::new(
-            "Expected a symbol or string",
-            Some(lhs.span().clone()),
-        ));
+        if let Some(span) = lhs.span() {
+            errors.push(ParseError::new(
+                "Expected a symbol or string",
+                Some(span.clone()),
+            ));
+        }
+
         lhs.as_error()
     } else {
         lhs
@@ -861,19 +911,26 @@ fn parse_namespace(
         rhs.node_type(),
         &NodeType::Symbol { .. } | &NodeType::LiteralString { .. }
     ) {
-        errors.push(ParseError::new(
-            "Expected a symbol or string",
-            Some(lhs.span().clone()),
-        ));
+        if let Some(span) = rhs.span() {
+            errors.push(ParseError::new(
+                "Expected a symbol or string",
+                Some(span.clone()),
+            ));
+        }
         rhs.as_error()
     } else {
         rhs
     };
 
-    Node::ok(
-        NodeType::NameSpace { internal },
-        Span::new(start, rhs.span().end()),
-        vec![lhs, rhs],
+    let end = rhs.span().expect("rhs should not be empty").end();
+
+    Node::non_empty(
+        NodeType::NameSpace {
+            internal,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        },
+        Span::new(start, end),
     )
 }
 
@@ -906,19 +963,26 @@ fn parse_extraction(
         &NodeType::Symbol { .. } | &NodeType::LiteralString { .. }
     ) {
         // Turn the lhs into an error node
-        errors.push(ParseError::new(
-            "Expected a symbol or string",
-            Some(rhs.span().clone()),
-        ));
+        if let Some(span) = rhs.span() {
+            errors.push(ParseError::new(
+                "Expected a symbol or string",
+                Some(span.clone()),
+            ));
+        }
+
         rhs.as_error()
     } else {
         rhs
     };
 
-    Node::ok(
-        NodeType::Extract,
-        Span::new(start, rhs.span().end()),
-        vec![lhs, rhs],
+    let end = rhs.span().expect("rhs should not be empty").end();
+
+    Node::non_empty(
+        NodeType::Extract {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        },
+        Span::new(start, end),
     )
 }
 
@@ -952,6 +1016,7 @@ fn parse_binary(
     errors: &mut Vec<ParseError>,
     context: &[TokenType],
     op: Token,
+    op_index: usize,
     lhs: Node,
     right_binding_power: u8,
     eat_lines: bool,
@@ -967,10 +1032,15 @@ fn parse_binary(
         context,
     );
 
-    Node::ok(
-        NodeType::Binary { op },
-        Span::new(start, rhs.span().end()),
-        vec![lhs, rhs],
+    let end = rhs.end().unwrap_or(op_index);
+
+    Node::non_empty(
+        NodeType::Binary {
+            op,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        },
+        Span::new(start, end),
     )
 }
 
@@ -1068,7 +1138,7 @@ fn parse_condition(
                 "Expected '('",
                 x.map(|x| Span::single(x.0)),
             ));
-            return Node::empty(NodeType::FormList);
+            return Node::empty(EmptyNodeType::FormList);
         }
     };
 
@@ -1084,10 +1154,13 @@ fn parse_condition(
 
     let end = delim_end.unwrap_or(cond.end().unwrap_or(start));
 
-    Node::new(
-        NodeType::Condition,
-        Span::new(start, end),
-        vec![cond],
+    error_if(
+        Node::non_empty(
+            NodeType::Condition {
+                expr: Box::new(cond),
+            },
+            Span::new(start, end),
+        ),
         delim_end.is_none(),
     )
 }
@@ -1111,7 +1184,7 @@ fn parse_for_condition(
                 "Expected '('",
                 x.map(|x| Span::single(x.0)),
             ));
-            return Node::empty(NodeType::FormList);
+            return Node::empty(EmptyNodeType::FormList);
         }
     };
 
@@ -1134,10 +1207,14 @@ fn parse_for_condition(
             .unwrap_or(in_op.unwrap_or(lhs.end().unwrap_or(start))),
     );
 
-    Node::new(
-        NodeType::ForCondition,
-        Span::new(start, end),
-        vec![lhs, rhs],
+    error_if(
+        Node::non_empty(
+            NodeType::ForCondition {
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            },
+            Span::new(start, end),
+        ),
         delim_end.is_none() || in_op.is_none(),
     )
 }
@@ -1202,14 +1279,14 @@ fn parse_formlist(
                 "Expected '('",
                 x.map(|x| Span::single(x.0)),
             ));
-            return Node::empty(NodeType::FormList);
+            return Node::empty(EmptyNodeType::FormList);
         }
     };
 
     parse_list(
         tokens,
         errors,
-        NodeType::FormList,
+        true,
         false,
         start,
         context,
@@ -1241,7 +1318,7 @@ fn parse_sublist(
     parse_list(
         tokens,
         errors,
-        NodeType::SubList,
+        false,
         square,
         start,
         context,
@@ -1253,7 +1330,7 @@ fn parse_sublist(
 fn parse_list(
     tokens: &mut Tokens,
     errors: &mut Vec<ParseError>,
-    node_type: NodeType,
+    formlist: bool,
     square: bool,
     start: usize,
     context: &[TokenType],
@@ -1318,12 +1395,13 @@ fn parse_list(
 
     let end = final_delim.unwrap_or(args.last().and_then(|x| x.end()).unwrap_or(start));
 
-    Node::new(
-        node_type,
-        Span::new(start, end),
-        args,
-        final_delim.is_none(),
-    )
+    let res = if formlist {
+        Node::non_empty(NodeType::FormList { items: args }, Span::new(start, end))
+    } else {
+        Node::non_empty(NodeType::SubList { items: args }, Span::new(start, end))
+    };
+
+    error_if(res, final_delim.is_none())
 }
 
 /// Parses an item of a sublist
@@ -1342,7 +1420,16 @@ fn parse_sublist_item(
 
     let equals_index = match peek_token(tokens, true) {
         Some((index, token)) if token.token_type() == &TokenType::Equals => index,
-        _ => return Some(Node::wraps(NodeType::SubListItem, lhs)),
+        _ => {
+            let lhs_span = lhs.span().cloned();
+            return Some(Node::new(
+                NodeType::SubListItem {
+                    lhs: Box::new(lhs),
+                    rhs: None,
+                },
+                lhs_span,
+            ));
+        }
     };
 
     next_token(tokens, true).expect("The token has already been peeked");
@@ -1351,11 +1438,12 @@ fn parse_sublist_item(
         lhs.node_type(),
         &NodeType::Symbol { .. } | &NodeType::LiteralString { .. } | &NodeType::Null
     ) {
-        // TODO: Error and continue
-        errors.push(ParseError::new(
-            "Expected a symbol, string, or NULL",
-            Some(lhs.span().clone()),
-        ));
+        if let Some(span) = lhs.span() {
+            errors.push(ParseError::new(
+                "Expected a symbol, string, or NULL",
+                Some(span.clone()),
+            ));
+        }
 
         lhs.as_error()
     } else {
@@ -1364,19 +1452,23 @@ fn parse_sublist_item(
 
     let start = lhs.start().unwrap_or(equals_index);
     if peek_token(tokens, true).is_some_and(|(_, token)| is_closing(token.token_type(), context)) {
-        return Some(Node::ok(
-            NodeType::SubListItem,
+        return Some(Node::non_empty(
+            NodeType::SubListItem {
+                lhs: Box::new(lhs),
+                rhs: None,
+            },
             Span::new(start, equals_index),
-            vec![lhs],
         ));
     }
 
     let rhs = parse_expr(tokens, errors, 0, true, false, true, context);
     let end = rhs.end().unwrap_or(equals_index);
-    Some(Node::ok(
-        NodeType::SubListItem,
+    Some(Node::non_empty(
+        NodeType::SubListItem {
+            lhs: Box::new(lhs),
+            rhs: Some(Box::new(rhs)),
+        },
         Span::new(start, end),
-        vec![lhs, rhs],
     ))
 }
 
@@ -1395,10 +1487,12 @@ fn parse_formlist_item(
     let lhs = parse_expr(tokens, errors, 0, true, false, true, context);
 
     let lhs = if !matches!(lhs.node_type(), NodeType::Symbol { .. }) {
-        errors.push(ParseError::new(
-            "Expected a symbol, string, or NULL",
-            Some(lhs.span().clone()),
-        ));
+        if let Some(span) = lhs.span() {
+            errors.push(ParseError::new(
+                "Expected a symbol, string, or NULL",
+                Some(span.clone()),
+            ));
+        }
 
         lhs.as_error()
     } else {
@@ -1407,7 +1501,16 @@ fn parse_formlist_item(
 
     let equals_index = match peek_token(tokens, true) {
         Some((index, token)) if token.token_type() == &TokenType::Equals => index,
-        _ => return Some(Node::wraps(NodeType::SubListItem, lhs)),
+        _ => {
+            let lhs_span = lhs.span().cloned();
+            return Some(Node::new(
+                NodeType::FormListItem {
+                    lhs: Box::new(lhs),
+                    rhs: None,
+                },
+                lhs_span,
+            ));
+        }
     };
 
     next_token(tokens, true).expect("The token has already been peeked");
@@ -1416,10 +1519,13 @@ fn parse_formlist_item(
 
     let start = lhs.start().unwrap_or(equals_index);
     let end = rhs.end().unwrap_or(equals_index);
-    Some(Node::ok(
-        NodeType::FormListItem,
+
+    Some(Node::non_empty(
+        NodeType::FormListItem {
+            lhs: Box::new(lhs),
+            rhs: Some(Box::new(rhs)),
+        },
         Span::new(start, end),
-        vec![lhs, rhs],
     ))
 }
 
@@ -1529,4 +1635,12 @@ fn add_contexts(context: &[TokenType], values: &[TokenType]) -> Vec<TokenType> {
     let mut vec = context.to_vec();
     vec.extend_from_slice(values);
     vec
+}
+
+fn error_if(node: Node, condition: bool) -> Node {
+    if condition {
+        node.as_error()
+    } else {
+        node
+    }
 }

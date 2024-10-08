@@ -1,13 +1,13 @@
 use core::panic;
 
 use handlers::document_symbols::document_symbols;
-use handlers::{document_symbols, expand_selection};
+use handlers::expand_selection;
 use server::Server;
 
 use anyhow::Result;
 use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
-use lsp_types::notification::{self};
-use lsp_types::{request as lsp_request, WorkspaceEdit};
+use lsp_types::notification;
+use lsp_types::request as lsp_request;
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
