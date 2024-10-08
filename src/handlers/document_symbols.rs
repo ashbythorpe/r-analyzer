@@ -18,7 +18,11 @@ pub fn document_symbols(
 
     let root = file.get_parse_tree();
 
-    let children: Vec<_> = root.children().filter(|x| !x.is_error()).collect();
+    let children: Vec<_> = root
+        .children()
+        .into_iter()
+        .filter(|x| !x.is_error())
+        .collect();
 
     let mut document_symbols = Vec::new();
 
@@ -94,57 +98,43 @@ pub fn document_symbol(
 }
 
 fn get_detail(file: &SourceFile, name: &str, node: &Node) -> Option<String> {
-    if node.node_type() != &NodeType::Function {
-        return None;
+    if let NodeType::Function { args, body: _ } = node.node_type() {
+        let params = args
+            .children()
+            .iter()
+            .filter_map(|x| format_param(file, x))
+            .join(", ");
+
+        Some(format!("{}({})", name, params))
+    } else {
+        None
     }
-
-    let params = node.children().get(1)?;
-
-    if params.is_error() || params.node_type() != &NodeType::FormList {
-        return None;
-    }
-
-    let params = params
-        .children()
-        .iter()
-        .filter_map(|x| format_param(file, x))
-        .join(", ");
-
-    Some(format!("{}({})", name, params))
 }
 
 fn format_param(file: &SourceFile, param: &Node) -> Option<String> {
-    if param.is_error() {
-        return None;
-    }
+    if let NodeType::FormListItem { lhs, rhs } = param.node_type() {
+        let lhs_text = file.get_node_text(lhs)?.to_string();
 
-    let lhs = param.children().get(0).unwrap();
-
-    if lhs.is_error() {
-        return None;
-    }
-
-    let lhs_text = file.get_node_text(lhs)?.to_string();
-
-    let rhs = param.children().get(1);
-
-    if let Some(rhs) = rhs {
-        if !rhs.is_error() {
-            let rhs_text = file.get_node_text(rhs)?.to_string();
-            return Some(format!("{} = {}", lhs_text, rhs_text));
+        if let Some(rhs) = rhs {
+            if !rhs.is_error() {
+                let rhs_text = file.get_node_text(rhs)?.to_string();
+                return Some(format!("{} = {}", lhs, rhs_text));
+            }
         }
-    }
 
-    Some(lhs_text)
+        Some(lhs_text)
+    } else {
+        None
+    }
 }
 
 fn get_type(node: &Node) -> lsp_types::SymbolKind {
     match *node.node_type() {
-        NodeType::Function => lsp_types::SymbolKind::FUNCTION,
+        NodeType::Function { .. } => lsp_types::SymbolKind::FUNCTION,
         NodeType::Symbol { .. } => lsp_types::SymbolKind::VARIABLE,
-        NodeType::LiteralString { value: _ } => lsp_types::SymbolKind::STRING,
+        NodeType::LiteralString { .. } => lsp_types::SymbolKind::STRING,
         NodeType::LiteralNumber => lsp_types::SymbolKind::NUMBER,
-        NodeType::LiteralBool => lsp_types::SymbolKind::BOOLEAN,
+        NodeType::LiteralBool { .. } => lsp_types::SymbolKind::BOOLEAN,
         _ => lsp_types::SymbolKind::VARIABLE,
     }
 }

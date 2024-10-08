@@ -116,7 +116,7 @@ pub fn parse(tokens: &[Token]) -> (Node, Vec<ParseError>) {
     let final_node = match (start, end) {
         (Some(start), Some(end)) => {
             let span = Span::between(start, end);
-            Node::non_empty(NodeType::File { expr: exprs }, span)
+            Node::non_empty(NodeType::File { exprs }, span)
         }
         _ => Node::empty(EmptyNodeType::File),
     };

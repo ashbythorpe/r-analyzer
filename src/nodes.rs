@@ -1,8 +1,4 @@
-use std::{
-    fmt::Display,
-    iter::{once, FusedIterator, Once, Peekable},
-    str::Chars,
-};
+use std::{fmt::Display, iter::Peekable, str::Chars};
 
 use crate::grammar::{FilePosition, FileSpan, Span, Token, TokenType};
 
@@ -66,7 +62,7 @@ impl Node {
         self.span.as_ref()
     }
 
-    pub fn children(&self) -> NodesIter {
+    pub fn children(&self) -> Vec<&Node> {
         self.node_type.children()
     }
 
@@ -103,6 +99,7 @@ impl Node {
             .iter()
             .filter(|x| {
                 self.children()
+                    .iter()
                     .any(|y| y.span().is_some_and(|y| y.contains(*x)))
             })
             .map(|x| &tokens[x])
@@ -229,7 +226,7 @@ pub enum NodeType {
     },
     WhiteSpace,
     File {
-        expr: Vec<Node>,
+        exprs: Vec<Node>,
     },
     ErrorBoundary {
         node: Box<Node>,
@@ -252,198 +249,69 @@ impl NodeType {
         }
     }
 
-    pub fn children(&self) -> NodesIter {
+    pub fn children(&self) -> Vec<&Node> {
         match self {
-            NodeType::Condition { expr } => NodesIter::one(expr),
-            NodeType::Symbol { value: _ } => NodesIter::empty(),
-            NodeType::LiteralNumber => NodesIter::empty(),
-            NodeType::LiteralString { value: _ } => NodesIter::empty(),
-            NodeType::LiteralBool { value: _ } => NodesIter::empty(),
-            NodeType::Null => NodesIter::empty(),
-            NodeType::Placeholder => NodesIter::empty(),
-            NodeType::PrefixCall { rhs } => NodesIter::one(rhs),
-            NodeType::Parentheses { contents } => NodesIter::one(contents),
-            NodeType::Braces { exprs } => NodesIter::many(exprs),
+            NodeType::Condition { expr } => vec![expr],
+            NodeType::Symbol { value: _ } => vec![],
+            NodeType::LiteralNumber => vec![],
+            NodeType::LiteralString { value: _ } => vec![],
+            NodeType::LiteralBool { value: _ } => vec![],
+            NodeType::Null => vec![],
+            NodeType::Placeholder => vec![],
+            NodeType::PrefixCall { rhs } => vec![rhs],
+            NodeType::Parentheses { contents } => vec![contents],
+            NodeType::Braces { exprs } => exprs.iter().map(|item| item).collect(),
             NodeType::If {
                 condition,
                 consequent_expr,
                 alternative_expr,
             } => {
                 if let Some(alternative) = alternative_expr {
-                    NodesIter::three(condition, consequent_expr, alternative)
+                    vec![condition, consequent_expr, alternative]
                 } else {
-                    NodesIter::two(condition, consequent_expr)
+                    vec![condition, consequent_expr]
                 }
             }
-            NodeType::For { condition, expr } => NodesIter::two(condition, expr),
-            NodeType::While { condition, expr } => NodesIter::two(condition, expr),
-            NodeType::Repeat { expr } => NodesIter::one(expr),
-            NodeType::Function { args, body: expr } => NodesIter::two(args, expr),
-            NodeType::Next => NodesIter::empty(),
-            NodeType::Break => NodesIter::empty(),
-            NodeType::Call { function, args } => NodesIter::two(function, args),
-            NodeType::Subset { lhs, args } => NodesIter::two(lhs, args),
-            NodeType::Index { lhs, args } => NodesIter::two(lhs, args),
+            NodeType::For { condition, expr } => vec![condition, expr],
+            NodeType::While { condition, expr } => vec![condition, expr],
+            NodeType::Repeat { expr } => vec![expr],
+            NodeType::Function { args, body: expr } => vec![args, expr],
+            NodeType::Next => vec![],
+            NodeType::Break => vec![],
+            NodeType::Call { function, args } => vec![function, args],
+            NodeType::Subset { lhs, args } => vec![lhs, args],
+            NodeType::Index { lhs, args } => vec![lhs, args],
             NodeType::NameSpace {
                 internal: _,
                 lhs,
                 rhs: args,
-            } => NodesIter::two(lhs, args),
-            NodeType::Extract { lhs, rhs } => NodesIter::two(lhs, rhs),
-            NodeType::Binary { op: _, lhs, rhs } => NodesIter::two(lhs, rhs),
-            NodeType::ForCondition { lhs, rhs } => NodesIter::two(lhs, rhs),
-            NodeType::FormList { items } => NodesIter::many(items),
+            } => vec![lhs, args],
+            NodeType::Extract { lhs, rhs } => vec![lhs, rhs],
+            NodeType::Binary { op: _, lhs, rhs } => vec![lhs, rhs],
+            NodeType::ForCondition { lhs, rhs } => vec![lhs, rhs],
+            NodeType::FormList { items } => items.iter().map(|item| item).collect(),
             NodeType::FormListItem { lhs, rhs } => {
                 if let Some(rhs) = rhs {
-                    NodesIter::two(lhs, rhs)
+                    vec![lhs, rhs]
                 } else {
-                    NodesIter::one(lhs)
+                    vec![lhs]
                 }
             }
-            NodeType::SubList { items } => NodesIter::many(items),
+            NodeType::SubList { items } => items.iter().map(|item| item).collect(),
             NodeType::SubListItem { lhs, rhs } => {
                 if let Some(rhs) = rhs {
-                    NodesIter::two(lhs, rhs)
+                    vec![lhs, rhs]
                 } else {
-                    NodesIter::one(lhs)
+                    vec![lhs]
                 }
             }
-            NodeType::WhiteSpace => NodesIter::empty(),
-            NodeType::File { expr } => NodesIter::many(expr),
-            NodeType::ErrorBoundary { node } => NodesIter::one(node),
-            NodeType::Empty(_) => NodesIter::empty(),
+            NodeType::WhiteSpace => vec![],
+            NodeType::File { exprs } => exprs.iter().map(|item| item).collect(),
+            NodeType::ErrorBoundary { node } => vec![node],
+            NodeType::Empty(_) => vec![],
         }
     }
 }
-
-pub struct NodesIter<'a>(NodesIterInner<'a>);
-
-enum NodesIterInner<'a> {
-    Empty(),
-    One(Once<&'a Node>),
-    Two {
-        a: &'a Node,
-        b: &'a Node,
-        index: usize,
-    },
-    Three {
-        a: &'a Node,
-        b: &'a Node,
-        c: &'a Node,
-        index: usize,
-    },
-    Many {
-        nodes: &'a Vec<Node>,
-        index: usize,
-    },
-}
-
-impl<'a> NodesIter<'a> {
-    fn empty() -> Self {
-        Self(NodesIterInner::Empty())
-    }
-
-    fn one(node: &'a Node) -> Self {
-        Self(NodesIterInner::One(once(node)))
-    }
-
-    fn two(node1: &'a Node, node2: &'a Node) -> Self {
-        Self(NodesIterInner::Two {
-            a: node1,
-            b: node2,
-            index: 0,
-        })
-    }
-
-    fn three(node1: &'a Node, node2: &'a Node, node3: &'a Node) -> Self {
-        Self(NodesIterInner::Three {
-            a: node1,
-            b: node2,
-            c: node3,
-            index: 0,
-        })
-    }
-
-    fn many(nodes: &'a Vec<Node>) -> Self {
-        Self(NodesIterInner::Many { nodes, index: 0 })
-    }
-}
-
-impl<'a> Iterator for NodesIter<'a> {
-    type Item = &'a Node;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
-impl<'a> Iterator for NodesIterInner<'a> {
-    type Item = &'a Node;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            NodesIterInner::Empty() => None,
-            NodesIterInner::One(iter) => iter.next(),
-            NodesIterInner::Two { a, b, index } => {
-                if *index < 2 {
-                    *index += 1;
-                    Some(if *index == 1 { b } else { a })
-                } else {
-                    None
-                }
-            }
-            NodesIterInner::Three { a, b, c, index } => {
-                if *index < 3 {
-                    *index += 1;
-                    Some(if *index == 1 {
-                        b
-                    } else if *index == 2 {
-                        c
-                    } else {
-                        a
-                    })
-                } else {
-                    None
-                }
-            }
-            NodesIterInner::Many { nodes, index } => {
-                if *index < nodes.len() {
-                    let node = &nodes[*index];
-                    *index += 1;
-                    Some(node)
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        match self {
-            NodesIterInner::Empty() => (0, Some(0)),
-            NodesIterInner::One(iter) => iter.size_hint(),
-            NodesIterInner::Two { a: _, b: _, index } => (2 - *index, Some(2 - *index)),
-            NodesIterInner::Three {
-                a: _,
-                b: _,
-                c: _,
-                index,
-            } => (3 - *index, Some(3 - *index)),
-            NodesIterInner::Many { nodes, index } => {
-                let len = nodes.len() - *index;
-                (len, Some(len))
-            }
-        }
-    }
-}
-
-impl ExactSizeIterator for NodesIter<'_> {}
-
-impl ExactSizeIterator for NodesIterInner<'_> {}
-
-impl FusedIterator for NodesIter<'_> {}
-
-impl FusedIterator for NodesIterInner<'_> {}
 
 #[derive(Debug)]
 pub enum EmptyNodeType {

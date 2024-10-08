@@ -1,9 +1,9 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use crate::{
     file::SourceFile,
     grammar::{FilePosition, FileSpan, Span, Token},
-    nodes::{Node, NodesIter},
+    nodes::Node,
 };
 
 pub struct Cursor<'a> {
@@ -30,7 +30,7 @@ impl<'a> Cursor<'a> {
         self.current
     }
 
-    pub fn children(&self) -> NodesIter<'a> {
+    pub fn children(&self) -> Vec<&'a Node> {
         self.current.children()
     }
 
@@ -55,18 +55,17 @@ impl<'a> Cursor<'a> {
             .last()
             .ok_or(SiblingError::NoParent(NoParentError))?;
 
-        let children: Vec<_> = parent.children().collect();
-
-        let index = children
+        let index = parent
+            .children()
             .iter()
-            .position(|x| std::ptr::eq(*x, self.current))
+            .position(|&x| std::ptr::eq(x, self.current))
             .expect("Parent does not contain child");
 
         if index == parent.children().len() - 1 {
             return Err(SiblingError::NoMoreSiblings);
         }
 
-        self.go_to_child(&children[index + 1]);
+        self.go_to_child(&parent.children()[index + 1]);
         Ok(())
     }
 
@@ -76,18 +75,17 @@ impl<'a> Cursor<'a> {
             .last()
             .ok_or(SiblingError::NoParent(NoParentError))?;
 
-        let children: Vec<_> = parent.children().collect();
-
-        let index = children
+        let index = parent
+            .children()
             .iter()
-            .position(|x| std::ptr::eq(*x, self.current))
+            .position(|&x| std::ptr::eq(x, self.current))
             .expect("Parent does not contain child");
 
-        if index == parent.children().len() - 1 {
+        if index == 0 {
             return Err(SiblingError::NoMoreSiblings);
         }
 
-        self.go_to_child(&children[index + 1]);
+        self.go_to_child(&parent.children()[index - 1]);
         Ok(())
     }
 
@@ -116,10 +114,11 @@ pub fn node_at_position(file: &SourceFile, position: FilePosition) -> Result<Cur
     let tokens = file.get_tokens();
 
     let mut cursor = Cursor::new(parse_tree);
+    let children = cursor.children();
 
     while !cursor.at_leaf() {
-        let child = cursor
-            .children()
+        let child = children
+            .iter()
             .find(|x| x.contains(position, tokens))
             .unwrap();
 
@@ -135,7 +134,7 @@ pub fn node_covering(file: &SourceFile, span: FileSpan) -> Result<Cursor> {
 
     let mut cursor = Cursor::new(parse_tree);
 
-    while let Some(x) = cursor.children().find(|x| x.covers(span, tokens)) {
+    while let Some(x) = cursor.children().iter().find(|x| x.covers(span, tokens)) {
         cursor.go_to_child(x)
     }
 
