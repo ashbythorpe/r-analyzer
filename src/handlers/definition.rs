@@ -65,9 +65,9 @@ fn param_definition(
     match function {
         Definition::FileSymbol { uri, file, node } => {
             if let Some((_lhs, rhs)) = split_assignment(node) {
-                if let NodeType::Function { args, body } = rhs.node_type() {
+                if let NodeType::Function { args, body: _ } = rhs.node_type() {
                     let arg = iter_args(args)
-                        .find(|Arg { lhs, rhs, .. }| lhs.is_some_and(|lhs| node_matches(lhs, arg)));
+                        .find(|Arg { lhs, .. }| lhs.is_some_and(|lhs| node_matches(lhs, arg)));
 
                     if let Some(Arg { lhs: Some(lhs), .. }) = arg {
                         return node_definition(file, uri.clone(), lhs);
@@ -76,7 +76,7 @@ fn param_definition(
             }
         }
         Definition::PackageSymbol { package, name } => {
-            let output = get_definition_string(server, package, name)?;
+            let output = get_definition_string(package, name)?;
 
             if !output.starts_with("function") {
                 return Ok(None);
@@ -124,7 +124,10 @@ fn param_definition(
                 column = 0;
             }
         }
-        Definition::Param { function: of, arg } => panic!("Recursive parameter definition"),
+        Definition::Param {
+            function: _,
+            arg: _,
+        } => panic!("Recursive parameter definition"),
     }
 
     Ok(None)
@@ -453,7 +456,7 @@ fn get_string_definition<'a>(
         NodeType::NameSpace {
             internal: _,
             lhs,
-            rhs,
+            rhs: _,
         } => {
             if node == lhs.as_ref() {
                 return get_package_definition(server, file, node);
@@ -461,7 +464,7 @@ fn get_string_definition<'a>(
                 return get_namespaced_definition(server, parent);
             }
         }
-        NodeType::Call { function, args } => {
+        NodeType::Call { .. } => {
             match cursor.parent().unwrap().node_type() {
                 NodeType::Extract { lhs: _, rhs } if node == rhs.as_ref() => {
                     return None;
@@ -471,16 +474,9 @@ fn get_string_definition<'a>(
 
             true
         }
-        NodeType::Subset { lhs, args } => false,
-        NodeType::Index { lhs, args } => false,
-        NodeType::NameSpace { internal, lhs, rhs } => {
-            if node == lhs.as_ref() {
-                return get_package_definition(server, file, node);
-            } else {
-                return get_namespaced_definition(server, parent);
-            }
-        }
-        NodeType::Extract { lhs, rhs } => {
+        NodeType::Subset { .. } => false,
+        NodeType::Index { .. } => false,
+        NodeType::Extract { lhs: _, rhs } => {
             if node == rhs.as_ref() {
                 // Can't get definition of e.g. x${field}
                 return None;
@@ -488,7 +484,7 @@ fn get_string_definition<'a>(
                 false
             }
         }
-        NodeType::FormListItem { lhs, rhs } => {
+        NodeType::FormListItem { lhs, rhs: _ } => {
             if node == lhs.as_ref() {
                 return Some(Definition::FileSymbol {
                     uri: current_uri,
@@ -591,28 +587,9 @@ fn get_symbol_definition<'a>(
     });
 }
 
-fn get_package_definition<'a>(
-    server: &Server,
-    file: &SourceFile,
-    name: &Node,
-) -> Option<Definition<'a>> {
-    todo!()
-}
-
-fn definition_location(file: &SourceFile, node: &Node) -> FileSpan {
-    let symbol = match node.node_type() {
-        NodeType::ForCondition { lhs, rhs: _ } => lhs,
-        NodeType::Binary { op, lhs, rhs } => match op.token_type() {
-            TokenType::LeftAssign | TokenType::Equals => rhs,
-            TokenType::RightAssign => lhs,
-            _ => panic!("Expected assignment operator"),
-        },
-        _ => panic!("Invalid definition node"),
-    };
-
-    symbol
-        .text_span(file.get_tokens())
-        .expect("Assignment symbol must have a span")
+fn get_package_definition<'a>(_: &Server, _: &SourceFile, _: &Node) -> Option<Definition<'a>> {
+    // TODO: Do we need this?
+    None
 }
 
 fn definition_is_function(node: &Node) -> bool {
@@ -851,12 +828,12 @@ fn get_definition_in_package(
     package: &str,
     name: &str,
 ) -> Result<Option<lsp_types::Location>> {
-    let output = get_definition_string(server, package, name)?;
+    let output = get_definition_string(package, name)?;
 
     generate_function(server, package, name, &output, None)
 }
 
-fn get_definition_string(server: &Server, package: &str, name: &str) -> Result<String> {
+fn get_definition_string(package: &str, name: &str) -> Result<String> {
     let full_name = format!("{}:::`{}`", package, name);
 
     let result = Command::new("R")

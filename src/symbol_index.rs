@@ -52,7 +52,7 @@ impl FileSymbol {
     pub fn get_node<'a>(&self, server: &'a Server) -> Result<&'a Node> {
         let tree = server.get_file(path_to_uri(self.file())?)?.get_parse_tree();
 
-        Ok(&tree.children()[self.node_index])
+        Ok(tree.children()[self.node_index])
     }
 
     pub fn get_assignee<'a>(&self, server: &'a Server) -> Result<&'a Node> {
@@ -173,7 +173,7 @@ impl FileIndex {
     }
 }
 
-pub fn create_symbol_map(symbols: &Vec<FileSymbol>) -> Result<fst::Map<Vec<u8>>> {
+pub fn create_symbol_map(symbols: &[FileSymbol]) -> Result<fst::Map<Vec<u8>>> {
     Ok(fst::Map::from_iter(
         symbols
             .iter()
