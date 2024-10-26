@@ -1,4 +1,4 @@
-use std::{fmt::Display, iter::Peekable, str::Chars};
+use std::{fmt::Display, iter::Peekable, mem, str::Chars};
 
 use crate::grammar::{FilePosition, FileSpan, Span, Token, TokenType};
 
@@ -128,7 +128,20 @@ impl Node {
     }
 
     pub fn is_leaf(&self) -> bool {
-        self.children().len() == 0
+        self.children().is_empty()
+    }
+
+    pub fn equals_option(&self, other: &Option<Box<Node>>) -> bool {
+        Some(self) == other.as_ref().map(|x| x.as_ref())
+    }
+}
+
+impl Eq for Node {}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(&self.node_type) == mem::discriminant(&other.node_type)
+            && self.span == other.span
     }
 }
 
@@ -221,7 +234,7 @@ pub enum NodeType {
         items: Vec<Node>,
     },
     SubListItem {
-        lhs: Box<Node>,
+        lhs: Option<Box<Node>>,
         rhs: Option<Box<Node>>,
     },
     WhiteSpace,
@@ -236,17 +249,11 @@ pub enum NodeType {
 
 impl NodeType {
     pub fn is_error(&self) -> bool {
-        match self {
-            NodeType::ErrorBoundary { .. } | NodeType::Empty(_) => true,
-            _ => false,
-        }
+        matches!(self, NodeType::ErrorBoundary { .. } | NodeType::Empty(_))
     }
 
     pub fn is_empty(&self) -> bool {
-        match self {
-            NodeType::Empty(_) => true,
-            _ => false,
-        }
+        matches!(self, NodeType::Empty(_))
     }
 
     pub fn children(&self) -> Vec<&Node> {
@@ -260,7 +267,7 @@ impl NodeType {
             NodeType::Placeholder => vec![],
             NodeType::PrefixCall { rhs } => vec![rhs],
             NodeType::Parentheses { contents } => vec![contents],
-            NodeType::Braces { exprs } => exprs.iter().map(|item| item).collect(),
+            NodeType::Braces { exprs } => exprs.iter().collect(),
             NodeType::If {
                 condition,
                 consequent_expr,
@@ -289,7 +296,7 @@ impl NodeType {
             NodeType::Extract { lhs, rhs } => vec![lhs, rhs],
             NodeType::Binary { op: _, lhs, rhs } => vec![lhs, rhs],
             NodeType::ForCondition { lhs, rhs } => vec![lhs, rhs],
-            NodeType::FormList { items } => items.iter().map(|item| item).collect(),
+            NodeType::FormList { items } => items.iter().collect(),
             NodeType::FormListItem { lhs, rhs } => {
                 if let Some(rhs) = rhs {
                     vec![lhs, rhs]
@@ -297,16 +304,15 @@ impl NodeType {
                     vec![lhs]
                 }
             }
-            NodeType::SubList { items } => items.iter().map(|item| item).collect(),
-            NodeType::SubListItem { lhs, rhs } => {
-                if let Some(rhs) = rhs {
-                    vec![lhs, rhs]
-                } else {
-                    vec![lhs]
-                }
-            }
+            NodeType::SubList { items } => items.iter().collect(),
+            NodeType::SubListItem { lhs, rhs } => match (lhs, rhs) {
+                (Some(lhs), Some(rhs)) => vec![lhs, rhs],
+                (Some(lhs), None) => vec![lhs],
+                (None, Some(rhs)) => vec![rhs],
+                (None, None) => panic!("Empty sub-list item"),
+            },
             NodeType::WhiteSpace => vec![],
-            NodeType::File { exprs } => exprs.iter().map(|item| item).collect(),
+            NodeType::File { exprs } => exprs.iter().collect(),
             NodeType::ErrorBoundary { node } => vec![node],
             NodeType::Empty(_) => vec![],
         }

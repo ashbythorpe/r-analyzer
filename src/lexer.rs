@@ -1,5 +1,6 @@
 use std::iter::from_fn;
 
+use anyhow::Result;
 use ropey::Rope;
 
 use crate::grammar::{Token, TokenType, NA};
@@ -51,7 +52,7 @@ fn parse_raw_string(
     errors: &mut Vec<LexerError>,
     i: usize,
     quote: char,
-) {
+) -> Result<(), ()> {
     let dashes = input.count_next(|x| x == '-');
 
     let delim = match input.next() {
@@ -66,8 +67,7 @@ fn parse_raw_string(
                     index: i,
                 });
 
-                parse_string_value(input, errors, i, quote);
-                return;
+                return parse_string_value(input, errors, i, quote);
             }
         },
         None => {
@@ -76,7 +76,7 @@ fn parse_raw_string(
                 index: i,
             });
 
-            return;
+            return Err(());
         }
     };
 
@@ -92,9 +92,11 @@ fn parse_raw_string(
                 index: i,
             });
 
-            return;
+            return Err(());
         }
     }
+
+    Ok(())
 }
 
 /// Parse a string. This is also used to parse a symbol wrapped in backticks.
@@ -103,7 +105,7 @@ fn parse_string_value(
     errors: &mut Vec<LexerError>,
     i: usize,
     quote: char,
-) {
+) -> Result<(), ()> {
     loop {
         if let Some(x) = input.next() {
             if x == quote {
@@ -117,13 +119,19 @@ fn parse_string_value(
                 index: i,
             });
 
-            return;
+            return Err(());
         }
     }
+
+    Ok(())
 }
 
 /// Parse a special symbol (`%{x}%`)
-fn parse_special_value(input: &mut CharTraverser, errors: &mut Vec<LexerError>, i: usize) {
+fn parse_special_value(
+    input: &mut CharTraverser,
+    errors: &mut Vec<LexerError>,
+    i: usize,
+) -> Result<(), ()> {
     input.next_while(|x| x != '%' && x != '\n');
 
     if input.next_if(|x| x == '%').is_none() {
@@ -131,7 +139,11 @@ fn parse_special_value(input: &mut CharTraverser, errors: &mut Vec<LexerError>, 
             message: "Unterminated %",
             index: i,
         });
+
+        return Err(());
     }
+
+    Ok(())
 }
 
 /// Parse a simple symbol (`+`, `<-`, etc.)
@@ -254,18 +266,18 @@ fn get_token(input: &mut CharTraverser, errors: &mut Vec<LexerError>, i: usize) 
             parse_number(input);
             TokenType::Number
         }
-        '"' | '\'' => {
-            parse_string_value(input, errors, i, char);
-            TokenType::String
-        }
-        '%' => {
-            parse_special_value(input, errors, i);
-            TokenType::Infix
-        }
-        '`' => {
-            parse_string_value(input, errors, i, '`');
-            TokenType::Symbol
-        }
+        '"' | '\'' => match parse_string_value(input, errors, i, char) {
+            Ok(()) => TokenType::String,
+            Err(()) => TokenType::Error,
+        },
+        '%' => match parse_special_value(input, errors, i) {
+            Ok(()) => TokenType::Infix,
+            Err(()) => TokenType::Error,
+        },
+        '`' => match parse_string_value(input, errors, i, '`') {
+            Ok(()) => TokenType::Symbol,
+            Err(()) => TokenType::Error,
+        },
         '#' => {
             input.next_while(|x| x != '\n');
             TokenType::Comment
@@ -273,8 +285,10 @@ fn get_token(input: &mut CharTraverser, errors: &mut Vec<LexerError>, i: usize) 
         '_' | 'a'..='z' | 'A'..='Z' => {
             if char == 'r' || char == 'R' {
                 if let Some(x) = input.next_if_matches("\\\"") {
-                    parse_raw_string(input, errors, i, x);
-                    TokenType::RawString
+                    match parse_raw_string(input, errors, i, x) {
+                        Ok(()) => TokenType::RawString,
+                        Err(()) => TokenType::Error,
+                    }
                 } else {
                     parse_symbol_value(input);
                     match_reserved(input.stored_string())

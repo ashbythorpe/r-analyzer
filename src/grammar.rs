@@ -42,6 +42,10 @@ impl FileSpan {
         Self::new(line, column, line, column)
     }
 
+    pub fn positions(&self) -> (FilePosition, FilePosition) {
+        (self.start, self.end)
+    }
+
     pub fn between(x: FilePosition, y: FilePosition) -> Self {
         Self { start: x, end: y }
     }
@@ -65,6 +69,19 @@ impl FileSpan {
 
     pub fn covers(&self, span: FileSpan) -> bool {
         span.start >= self.start && span.end <= self.end
+    }
+
+    pub fn shift(&self, lines: usize, columns: usize) -> Self {
+        Self {
+            start: FilePosition {
+                line: self.start.line + lines,
+                column: self.start.column + columns,
+            },
+            end: FilePosition {
+                line: self.end.line + lines,
+                column: self.end.column + columns,
+            },
+        }
     }
 }
 

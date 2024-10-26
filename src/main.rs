@@ -1,5 +1,6 @@
 use core::panic;
 
+use handlers::definition::go_to_definition;
 use handlers::document_symbols::document_symbols;
 use handlers::expand_selection;
 use server::Server;
@@ -28,6 +29,7 @@ pub mod nodes;
 mod package_index;
 mod parser;
 mod server;
+mod symbol_index;
 mod utils;
 
 fn main() -> Result<()> {
@@ -83,6 +85,14 @@ fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
                             cast_request::<lsp_request::DocumentSymbolRequest>(request)?;
 
                         let result = document_symbols(&server, params)?;
+                        let response = Response::new_ok(id, result);
+
+                        connection.sender.send(Message::Response(response))?;
+                    }
+                    "textDocument/definition" => {
+                        let (id, params) = cast_request::<lsp_request::GotoDefinition>(request)?;
+
+                        let result = go_to_definition(&server, params)?;
                         let response = Response::new_ok(id, result);
 
                         connection.sender.send(Message::Response(response))?;

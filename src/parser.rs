@@ -1424,8 +1424,8 @@ fn parse_sublist_item(
             let lhs_span = lhs.span().cloned();
             return Some(Node::new(
                 NodeType::SubListItem {
-                    lhs: Box::new(lhs),
-                    rhs: None,
+                    lhs: None,
+                    rhs: Some(Box::new(lhs)),
                 },
                 lhs_span,
             ));
@@ -1454,7 +1454,7 @@ fn parse_sublist_item(
     if peek_token(tokens, true).is_some_and(|(_, token)| is_closing(token.token_type(), context)) {
         return Some(Node::non_empty(
             NodeType::SubListItem {
-                lhs: Box::new(lhs),
+                lhs: Some(Box::new(lhs)),
                 rhs: None,
             },
             Span::new(start, equals_index),
@@ -1465,7 +1465,7 @@ fn parse_sublist_item(
     let end = rhs.end().unwrap_or(equals_index);
     Some(Node::non_empty(
         NodeType::SubListItem {
-            lhs: Box::new(lhs),
+            lhs: Some(Box::new(lhs)),
             rhs: Some(Box::new(rhs)),
         },
         Span::new(start, end),

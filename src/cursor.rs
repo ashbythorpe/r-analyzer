@@ -6,17 +6,22 @@ use crate::{
     nodes::Node,
 };
 
+#[derive(Clone, Debug)]
 pub struct Cursor<'a> {
     current: &'a Node,
     parents: Vec<&'a Node>,
 }
 
+#[derive(Debug)]
 pub struct NoParentError;
 
+#[derive(Debug)]
 pub enum SiblingError {
     NoMoreSiblings,
     NoParent(NoParentError),
 }
+
+pub struct NotEnoughChildrenError;
 
 impl<'a> Cursor<'a> {
     pub fn new(root: &'a Node) -> Self {
@@ -43,6 +48,18 @@ impl<'a> Cursor<'a> {
         self.current = child;
     }
 
+    pub fn go_to_child_index(&mut self, index: usize) -> Result<(), NotEnoughChildrenError> {
+        let children = self.current.children();
+
+        let child = match children.get(index) {
+            Some(x) => x,
+            None => return Err(NotEnoughChildrenError),
+        };
+
+        self.go_to_child(child);
+        Ok(())
+    }
+
     pub fn go_to_parent(&mut self) -> Result<(), NoParentError> {
         self.current = self.parents.pop().ok_or(NoParentError)?;
 
@@ -58,14 +75,14 @@ impl<'a> Cursor<'a> {
         let index = parent
             .children()
             .iter()
-            .position(|&x| std::ptr::eq(x, self.current))
+            .position(|&x| x == self.current)
             .expect("Parent does not contain child");
 
         if index == parent.children().len() - 1 {
             return Err(SiblingError::NoMoreSiblings);
         }
 
-        self.go_to_child(&parent.children()[index + 1]);
+        self.go_to_child(parent.children()[index + 1]);
         Ok(())
     }
 
@@ -78,14 +95,14 @@ impl<'a> Cursor<'a> {
         let index = parent
             .children()
             .iter()
-            .position(|&x| std::ptr::eq(x, self.current))
+            .position(|&x| x == self.current)
             .expect("Parent does not contain child");
 
         if index == 0 {
             return Err(SiblingError::NoMoreSiblings);
         }
 
-        self.go_to_child(&parent.children()[index - 1]);
+        self.go_to_child(parent.children()[index - 1]);
         Ok(())
     }
 
@@ -104,8 +121,20 @@ impl<'a> Cursor<'a> {
         self.current.span()
     }
 
-    pub fn text_span(&self, tokens: &Vec<Token>) -> Option<FileSpan> {
+    pub fn text_span(&self, tokens: &[Token]) -> Option<FileSpan> {
         self.current.text_span(tokens)
+    }
+
+    pub fn siblings(&self) -> Vec<&'a Node> {
+        if let Some(parent) = self.parent() {
+            parent.children()
+        } else {
+            vec![self.current]
+        }
+    }
+
+    pub fn is_top_level(&self) -> bool {
+        self.parents.len() <= 1
     }
 }
 

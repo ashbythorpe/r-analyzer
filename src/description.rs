@@ -11,7 +11,7 @@ use camino::Utf8PathBuf;
 
 use crate::grammar::FileSpan;
 
-pub fn find_description(path: Utf8PathBuf) -> Result<Option<DescriptionFile>> {
+pub fn find_description(path: &Utf8PathBuf) -> Result<Option<DescriptionFile>> {
     path.read_dir()?
         .filter_map(|x| x.ok())
         .find(|x| x.file_name() == "DESCRIPTION")

@@ -27,8 +27,7 @@ pub fn document_symbols(
     let mut document_symbols = Vec::new();
 
     for child in children {
-        if let Some((assignee, assigned)) = get_parts(child) {
-            let symbol = document_symbol(file, child, assignee, assigned);
+        if let Some(symbol) = document_symbol(file, child) {
             document_symbols.push(symbol);
         }
     }
@@ -36,39 +35,21 @@ pub fn document_symbols(
     Ok(document_symbols)
 }
 
-pub fn get_parts(node: &Node) -> Option<(&Node, &Node)> {
-    let binary_op = match node.node_type() {
-        NodeType::Binary { op: x, .. } => x,
-        _ => return None,
-    };
-
-    let children = node.children();
-
-    let (assignee, assigned) = match binary_op.token_type() {
-        &TokenType::Equals | &TokenType::LeftAssign => (children.get(0)?, children.get(1)?),
-        &TokenType::RightAssign => (children.get(1)?, children.get(0)?),
-        _ => return None,
-    };
-
-    if assignee.is_error() || assigned.is_error() {
-        return None;
-    }
-
-    match assignee.node_type() {
-        NodeType::Symbol { value: _ } | NodeType::LiteralString { value: _ } => {
-            Some((assignee, assigned))
-        }
-        _ => None,
-    }
-}
-
-pub fn document_symbol(
-    file: &SourceFile,
-    node: &Node,
-    assignee: &Node,
-    assigned: &Node,
-) -> lsp_types::DocumentSymbol {
+pub fn document_symbol(file: &SourceFile, node: &Node) -> Option<lsp_types::DocumentSymbol> {
     let tokens = file.get_tokens();
+
+    let (assignee, assigned) = match node.node_type() {
+        NodeType::Binary { op: _, lhs, rhs } if lhs.is_error() || rhs.is_error() => return None,
+        NodeType::Binary { op, lhs, rhs }
+            if matches!(*op.token_type(), TokenType::Equals | TokenType::LeftAssign) =>
+        {
+            (lhs, rhs)
+        }
+        NodeType::Binary { op, lhs, rhs } if matches!(*op.token_type(), TokenType::RightAssign) => {
+            (rhs, lhs)
+        }
+        _ => return None,
+    };
 
     let name = match assignee.node_type() {
         NodeType::Symbol { value } => value.clone(),
@@ -85,7 +66,7 @@ pub fn document_symbol(
     let selection_range = assigned.text_span(tokens).unwrap();
 
     #[allow(deprecated)]
-    lsp_types::DocumentSymbol {
+    Some(lsp_types::DocumentSymbol {
         name,
         detail,
         kind,
@@ -94,7 +75,7 @@ pub fn document_symbol(
         range: range.into(),
         selection_range: selection_range.into(),
         children: None,
-    }
+    })
 }
 
 fn get_detail(file: &SourceFile, name: &str, node: &Node) -> Option<String> {
@@ -124,7 +105,7 @@ fn format_param(file: &SourceFile, param: &Node) -> Option<String> {
 
         Some(lhs_text)
     } else {
-        None
+        panic!("Every child of a formlist must be a formlistitem");
     }
 }
 

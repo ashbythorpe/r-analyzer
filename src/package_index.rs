@@ -9,7 +9,9 @@ use std::{
 
 use anyhow::Result;
 
-use fst::Map;
+use fst::map::{IndexedValue, OpBuilder};
+use fst::{automaton, Streamer};
+use fst::{automaton::Str, Map};
 
 use crate::description::DescriptionFile;
 
@@ -64,6 +66,50 @@ for (item in lazydata) {{
 #[derive(Debug)]
 pub struct PackageIndex {
     packages: HashMap<String, Package>,
+    imported: Vec<String>,
+}
+
+impl PackageIndex {
+    pub fn new(packages: HashMap<String, Package>) -> Self {
+        Self {
+            packages,
+            imported: vec!["base".to_string()],
+        }
+    }
+
+    pub fn get_package(&self, name: &str) -> Option<&Package> {
+        self.packages.get(name)
+    }
+
+    pub fn find_name(&self, name: &str) -> Option<(&Package, &Symbol)> {
+        let exported: Vec<_> = self.get_package("base").into_iter().collect();
+
+        let mut stream = OpBuilder::new();
+
+        for package in &exported {
+            stream.push(package.query(name));
+        }
+
+        let mut stream_union = stream.union();
+
+        while let Some((_, indexed_values)) = stream_union.next() {
+            for IndexedValue { index, value } in indexed_values {
+                let package = exported[*index];
+
+                let symbol = package.get_exported_symbol(*value);
+
+                if symbol.name() == name {
+                    return Some((package, symbol));
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn get_symbol(&self, package: &str, name: &str, internal: bool) -> Option<&Symbol> {
+        self.get_package(package)?.get_symbol(name, internal)
+    }
 }
 
 #[derive(Debug)]
@@ -89,7 +135,7 @@ impl Package {
         }
     }
 
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
@@ -100,6 +146,31 @@ impl Package {
     fn not_exported(&self) -> &[Symbol] {
         &self.not_exported
     }
+
+    pub fn export_map(&self) -> &Map<Vec<u8>> {
+        &self.export_map
+    }
+
+    pub fn query<'a>(&'a self, name: &'a str) -> fst::map::StreamBuilder<Str> {
+        let matcher = automaton::Str::new(name);
+
+        self.export_map.search(matcher)
+    }
+
+    pub fn get_exported_symbol(&self, i: u64) -> &Symbol {
+        &self.exported[i as usize]
+    }
+
+    pub fn get_symbol(&self, name: &str, internal: bool) -> Option<&Symbol> {
+        if internal {
+            self.exported
+                .iter()
+                .find(|x| x.name() == name)
+                .or_else(|| self.not_exported.iter().find(|x| x.name() == name))
+        } else {
+            self.exported.iter().find(|x| x.name() == name)
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -109,7 +180,7 @@ pub enum Symbol {
 }
 
 impl Symbol {
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             Symbol::Function { name, .. } => name,
             Symbol::Object { name } => name,
@@ -124,6 +195,10 @@ pub struct Arg {
 }
 
 impl Arg {
+    pub fn new(name: String, default: Option<String>) -> Self {
+        Self { name, default }
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -196,7 +271,7 @@ pub fn get_package_index(description: &Option<DescriptionFile>) -> Result<Packag
         }
     }
 
-    Ok(PackageIndex { packages })
+    Ok(PackageIndex::new(packages))
 }
 
 fn add_packages(packages: &mut HashMap<String, Package>, names: &Vec<&str>) -> Result<()> {
@@ -219,17 +294,13 @@ fn add_packages_string(packages: &mut HashMap<String, Package>, names: &Vec<Stri
     Ok(())
 }
 
-fn get_symbol_map(symbols: &Vec<Symbol>) -> Result<Map<Vec<u8>>> {
+fn get_symbol_map(symbols: &[Symbol]) -> Result<Map<Vec<u8>>> {
     Ok(Map::from_iter(
         symbols
             .iter()
             .enumerate()
             .map(|(i, x)| (x.name().as_bytes(), i as u64)),
     )?)
-}
-
-fn create_entry(package_index: usize, symbol_index: usize) -> u64 {
-    (package_index as u64) << 32 | (symbol_index as u32 as u64)
 }
 
 fn get_package_symbols(package: String) -> Result<Package> {
