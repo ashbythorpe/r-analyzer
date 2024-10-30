@@ -68,8 +68,7 @@ fn get_ranges(file: &SourceFile, position: FilePosition) -> Vec<FileSpan> {
         }
     }
 
-    let mut cursor = node_covering(file, range)
-        .unwrap_or_else(|_| panic!("Node covering {:?} not found", range));
+    let mut cursor = node_covering(file, range);
 
     loop {
         if cursor.text_span(file.get_tokens()).unwrap() == range {

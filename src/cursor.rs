@@ -48,6 +48,12 @@ impl<'a> Cursor<'a> {
         self.current = child;
     }
 
+    pub fn to_child(&self, child: &'a Node) -> Self {
+        let mut cursor = self.clone();
+        cursor.go_to_child(child);
+        cursor
+    }
+
     pub fn go_to_child_index(&mut self, index: usize) -> Result<(), NotEnoughChildrenError> {
         let children = self.current.children();
 
@@ -138,7 +144,25 @@ impl<'a> Cursor<'a> {
     }
 }
 
-pub fn node_at_position(file: &SourceFile, position: FilePosition) -> Result<Cursor> {
+pub fn go_to_node<'a>(file: &'a SourceFile, node: &'a Node) -> Cursor<'a> {
+    let mut cursor = Cursor::new(file.get_parse_tree());
+    let span = node.span().expect("Node must have a span");
+
+    while cursor.current() != node {
+        let children = cursor.children();
+
+        let child = children
+            .iter()
+            .find(|x| x.span().is_some_and(|x| x.includes(span)))
+            .unwrap();
+
+        cursor.go_to_child(child);
+    }
+
+    cursor
+}
+
+pub fn node_at_position(file: &SourceFile, position: FilePosition) -> Cursor {
     let parse_tree = file.get_parse_tree();
     let tokens = file.get_tokens();
 
@@ -154,10 +178,10 @@ pub fn node_at_position(file: &SourceFile, position: FilePosition) -> Result<Cur
         cursor.go_to_child(child);
     }
 
-    Ok(cursor)
+    cursor
 }
 
-pub fn node_covering(file: &SourceFile, span: FileSpan) -> Result<Cursor> {
+pub fn node_covering(file: &SourceFile, span: FileSpan) -> Cursor {
     let parse_tree = file.get_parse_tree();
     let tokens = file.get_tokens();
 
@@ -167,5 +191,5 @@ pub fn node_covering(file: &SourceFile, span: FileSpan) -> Result<Cursor> {
         cursor.go_to_child(x)
     }
 
-    Ok(cursor)
+    cursor
 }

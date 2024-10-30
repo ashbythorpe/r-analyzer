@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs::File, path::PathBuf};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fs::File,
+    path::PathBuf,
+};
 
 use anyhow::Result;
 use camino::Utf8PathBuf;
@@ -16,6 +20,7 @@ use crate::{
 
 pub struct Server {
     pub files: HashMap<Utf8PathBuf, SourceFile>,
+    root_dir: Option<Utf8PathBuf>,
     description: Option<DescriptionFile>,
     package_index: PackageIndex,
     symbol_index: SymbolIndex,
@@ -26,6 +31,7 @@ pub struct Server {
 impl Server {
     pub fn new(
         description: Option<DescriptionFile>,
+        root_dir: Option<Utf8PathBuf>,
         package_index: PackageIndex,
         symbol_index: SymbolIndex,
         installed_packages: HashMap<String, PathBuf>,
@@ -33,6 +39,7 @@ impl Server {
     ) -> Self {
         Self {
             files: HashMap::new(),
+            root_dir,
             description,
             package_index,
             symbol_index,
@@ -43,11 +50,15 @@ impl Server {
 
     pub fn initialize(params: lsp_types::InitializeParams) -> Result<Self> {
         #[allow(deprecated)]
-        let (description, r_files) = if let Some(root_path) = params.root_uri {
+        let (root_dir, description, r_files) = if let Some(root_path) = params.root_uri {
             let path = parse_url(root_path)?;
-            (find_description(&path)?, find_files(&path)?)
+            (
+                Some(path.clone()),
+                find_description(&path)?,
+                find_files(&path)?,
+            )
         } else {
-            (None, None)
+            (None, None, None)
         };
 
         let mut files = HashMap::new();
@@ -70,6 +81,7 @@ impl Server {
 
         Ok(Self::new(
             description,
+            root_dir,
             package_index,
             symbol_index,
             installed_packages,
@@ -92,6 +104,28 @@ impl Server {
         self.files
             .get(&path)
             .ok_or_else(|| anyhow::anyhow!("File does not exist"))
+    }
+
+    pub fn get_path(&self, path: Utf8PathBuf) -> Result<&SourceFile> {
+        self.files
+            .get(&path)
+            .ok_or_else(|| anyhow::anyhow!("File does not exist"))
+    }
+
+    pub fn get_or_insert_file(&mut self, path: lsp_types::Uri) -> anyhow::Result<&mut SourceFile> {
+        let path = parse_url(path)?;
+
+        let entry = self.files.entry(path.clone());
+
+        match entry {
+            Entry::Occupied(x) => Ok(x.into_mut()),
+            Entry::Vacant(x) => {
+                let text = Rope::from_reader(File::open(&path)?)?;
+                let parsed = SourceFile::parse(text);
+                self.symbol_index.add_file(path.clone(), &parsed)?;
+                Ok(x.insert(parsed))
+            }
+        }
     }
 
     pub fn update_file(
@@ -139,6 +173,10 @@ impl Server {
 
     pub fn symbol_index(&self) -> &SymbolIndex {
         &self.symbol_index
+    }
+
+    pub fn root_dir(&self) -> Option<&Utf8PathBuf> {
+        self.root_dir.as_ref()
     }
 }
 

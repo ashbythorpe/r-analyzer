@@ -97,6 +97,14 @@ fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
 
                         connection.sender.send(Message::Response(response))?;
                     }
+                    "textDocument/references" => {
+                        let (id, params) = cast_request::<lsp_request::References>(request)?;
+
+                        let result = handlers::references::find_references(&server, params)?;
+                        let response = Response::new_ok(id, result);
+
+                        connection.sender.send(Message::Response(response))?;
+                    }
                     _ => {
                         return Err(anyhow::anyhow!("Unexpected request: {:?}", request));
                     }

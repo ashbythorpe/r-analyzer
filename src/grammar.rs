@@ -343,4 +343,8 @@ impl Span {
     pub fn contains(&self, x: usize) -> bool {
         self.start <= x && x <= self.end
     }
+
+    pub fn includes(&self, other: &Span) -> bool {
+        other.start >= self.start && other.end <= self.end
+    }
 }

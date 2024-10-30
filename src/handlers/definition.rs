@@ -39,7 +39,7 @@ pub fn get_definition<'a>(
     uri: Uri,
     position: FilePosition,
 ) -> Result<Option<Definition<'a>>> {
-    let cursor = node_at_position(file, position)?;
+    let cursor = node_at_position(file, position);
 
     let token = file.token_at(position);
     let node = cursor.current();
