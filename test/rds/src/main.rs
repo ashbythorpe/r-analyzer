@@ -2,11 +2,11 @@ use std::{
     env,
     fs::File,
     io::{BufReader, Read},
+    path::PathBuf,
 };
 
 use anyhow::Result;
 
-use camino::Utf8PathBuf;
 use flate2::bufread::GzDecoder;
 
 fn read_package_info() {}
@@ -16,10 +16,10 @@ type Decoder = GzDecoder<BufReader<File>>;
 fn main() {
     let path = env::args().nth(1).unwrap();
 
-    read_rds(Utf8PathBuf::from(path)).unwrap();
+    read_rds(PathBuf::from(path)).unwrap();
 }
 
-fn read_rds(file: Utf8PathBuf) -> Result<()> {
+fn read_rds(file: PathBuf) -> Result<()> {
     let mut decoder = GzDecoder::new(BufReader::new(File::open(file)?));
 
     let format = get_format(&mut decoder)?;

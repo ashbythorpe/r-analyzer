@@ -8,7 +8,7 @@ use crate::{
     file::SourceFile,
     grammar::{FilePosition, FileSpan, TokenType},
     nodes::{Node, NodeType},
-    utils::{file_to_uri, iter_args, path_to_uri, split_assignment, Arg},
+    utils::{iter_args, path_to_uri, split_assignment, Arg},
     Server,
 };
 
@@ -880,7 +880,7 @@ fn generate_function(
 
     let path_str = path.to_str().ok_or(anyhow!("Invalid path"))?;
 
-    let uri = file_to_uri(path_str)?;
+    let uri = path_to_uri(path_str)?;
 
     Ok(Some(lsp_types::Location {
         uri,

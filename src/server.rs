@@ -5,7 +5,6 @@ use std::{
 };
 
 use anyhow::Result;
-use camino::Utf8PathBuf;
 use lsp_types::TextDocumentContentChangeEvent;
 use ropey::Rope;
 use tempdir::TempDir;
@@ -19,8 +18,8 @@ use crate::{
 };
 
 pub struct Server {
-    pub files: HashMap<Utf8PathBuf, SourceFile>,
-    root_dir: Option<Utf8PathBuf>,
+    pub files: HashMap<PathBuf, SourceFile>,
+    root_dir: Option<PathBuf>,
     description: Option<DescriptionFile>,
     package_index: PackageIndex,
     symbol_index: SymbolIndex,
@@ -31,7 +30,7 @@ pub struct Server {
 impl Server {
     pub fn new(
         description: Option<DescriptionFile>,
-        root_dir: Option<Utf8PathBuf>,
+        root_dir: Option<PathBuf>,
         package_index: PackageIndex,
         symbol_index: SymbolIndex,
         installed_packages: HashMap<String, PathBuf>,
@@ -106,9 +105,9 @@ impl Server {
             .ok_or_else(|| anyhow::anyhow!("File does not exist"))
     }
 
-    pub fn get_path(&self, path: Utf8PathBuf) -> Result<&SourceFile> {
+    pub fn get_path(&self, path: &PathBuf) -> Result<&SourceFile> {
         self.files
-            .get(&path)
+            .get(path)
             .ok_or_else(|| anyhow::anyhow!("File does not exist"))
     }
 
@@ -175,12 +174,12 @@ impl Server {
         &self.symbol_index
     }
 
-    pub fn root_dir(&self) -> Option<&Utf8PathBuf> {
+    pub fn root_dir(&self) -> Option<&PathBuf> {
         self.root_dir.as_ref()
     }
 }
 
-fn find_files(path: &Utf8PathBuf) -> Result<Option<Vec<Utf8PathBuf>>> {
+fn find_files(path: &PathBuf) -> Result<Option<Vec<PathBuf>>> {
     let r_path = match path
         .read_dir()?
         .filter_map(|x| x.ok())
@@ -200,7 +199,7 @@ fn find_files(path: &Utf8PathBuf) -> Result<Option<Vec<Utf8PathBuf>>> {
                     .extension()
                     .is_some_and(|x| x.to_str() == Some("R"))
         })
-        .filter_map(|x| Utf8PathBuf::from_path_buf(x.path()).ok())
+        .map(|x| x.path())
         .collect();
 
     Ok(Some(files))

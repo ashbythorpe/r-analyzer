@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use anyhow::Result;
-use camino::Utf8PathBuf;
 use lsp_types::{Location, Uri};
 use memchr::memmem::Finder;
 use walkdir::WalkDir;
@@ -275,12 +274,7 @@ fn search_file(
     original_uri: &Uri,
     exclude: Option<&Node>,
 ) -> Result<()> {
-    let path = match Utf8PathBuf::from_path_buf(path.to_path_buf()) {
-        Ok(x) => x,
-        Err(_) => return Ok(()),
-    };
-
-    let file = server.get_path(path.clone())?;
+    let file = server.get_path(&path.to_path_buf())?;
 
     let contents = file.get_content();
 
@@ -294,7 +288,7 @@ fn search_file(
 
     let cursor = Cursor::new(root);
 
-    let uri = path_to_uri(&path)?;
+    let uri = path_to_uri(path)?;
 
     let exclude = if &uri == original_uri { exclude } else { None };
 

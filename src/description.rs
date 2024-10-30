@@ -2,16 +2,15 @@ use std::{
     collections::HashMap,
     fs,
     iter::{Enumerate, Peekable},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::Chars,
 };
 
 use anyhow::Result;
-use camino::Utf8PathBuf;
 
 use crate::grammar::FileSpan;
 
-pub fn find_description(path: &Utf8PathBuf) -> Result<Option<DescriptionFile>> {
+pub fn find_description(path: &Path) -> Result<Option<DescriptionFile>> {
     path.read_dir()?
         .filter_map(|x| x.ok())
         .find(|x| x.file_name() == "DESCRIPTION")

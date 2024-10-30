@@ -8,7 +8,6 @@ inherits = "release"
 debug = true
 
 [dependencies]
-camino = "1.1.1"
 anyhow = "1.0.89"
 lsp-server = "0.7.7"
 lsp-types = "0.97.0"

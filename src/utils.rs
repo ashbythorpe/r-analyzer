@@ -1,7 +1,9 @@
-use std::str::FromStr;
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::Result;
-use camino::Utf8PathBuf;
 use url::Url;
 
 use crate::{
@@ -9,7 +11,7 @@ use crate::{
     nodes::{Node, NodeType},
 };
 
-pub fn parse_url(uri: lsp_types::Uri) -> Result<Utf8PathBuf> {
+pub fn parse_url(uri: lsp_types::Uri) -> Result<PathBuf> {
     let url = Url::parse(uri.as_str())?;
 
     let path = match url.to_file_path() {
@@ -19,18 +21,17 @@ pub fn parse_url(uri: lsp_types::Uri) -> Result<Utf8PathBuf> {
         }
     };
 
-    Ok(camino::absolute_utf8(&path)?)
+    Ok(path.canonicalize()?)
 }
 
-pub fn path_to_uri(path: &Utf8PathBuf) -> Result<lsp_types::Uri> {
-    file_to_uri(path.as_str())
-}
-
-pub fn file_to_uri(path: &str) -> Result<lsp_types::Uri> {
+pub fn path_to_uri<P>(path: P) -> Result<lsp_types::Uri>
+where
+    P: AsRef<Path>,
+{
     let url = match Url::from_file_path(path) {
         Ok(x) => x,
         Err(_) => {
-            anyhow::bail!("Invalid file path: {:?}", path);
+            anyhow::bail!("Invalid file path");
         }
     };
 

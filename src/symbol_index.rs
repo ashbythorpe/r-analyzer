@@ -1,7 +1,8 @@
 use anyhow::Result;
-use std::collections::{hash_map::Entry, HashMap};
-
-use camino::Utf8PathBuf;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    path::PathBuf,
+};
 
 use crate::{
     file::SourceFile,
@@ -13,8 +14,8 @@ use crate::{
 };
 
 pub struct SymbolIndex {
-    symbols: HashMap<Utf8PathBuf, FileIndex>,
-    index: HashMap<String, (Utf8PathBuf, usize)>,
+    symbols: HashMap<PathBuf, FileIndex>,
+    index: HashMap<String, (PathBuf, usize)>,
 }
 
 pub struct FileIndex {
@@ -24,12 +25,12 @@ pub struct FileIndex {
 
 pub struct FileSymbol {
     symbol: Symbol,
-    file: Utf8PathBuf,
+    file: PathBuf,
     node_index: usize,
 }
 
 impl FileSymbol {
-    pub fn new(symbol: Symbol, file: Utf8PathBuf, node_index: usize) -> Self {
+    pub fn new(symbol: Symbol, file: PathBuf, node_index: usize) -> Self {
         Self {
             symbol,
             file,
@@ -41,7 +42,7 @@ impl FileSymbol {
         &self.symbol
     }
 
-    pub fn file(&self) -> &Utf8PathBuf {
+    pub fn file(&self) -> &PathBuf {
         &self.file
     }
 
@@ -71,13 +72,13 @@ impl FileSymbol {
 
 impl SymbolIndex {
     pub fn new(
-        symbols: HashMap<Utf8PathBuf, FileIndex>,
-        index: HashMap<String, (Utf8PathBuf, usize)>,
+        symbols: HashMap<PathBuf, FileIndex>,
+        index: HashMap<String, (PathBuf, usize)>,
     ) -> Self {
         Self { symbols, index }
     }
 
-    pub fn create(files: &HashMap<Utf8PathBuf, SourceFile>) -> Result<Self> {
+    pub fn create(files: &HashMap<PathBuf, SourceFile>) -> Result<Self> {
         let mut symbols = HashMap::new();
         let mut index = HashMap::new();
 
@@ -97,7 +98,7 @@ impl SymbolIndex {
         Ok(Self::new(symbols, index))
     }
 
-    pub fn add_file(&mut self, path: Utf8PathBuf, file: &SourceFile) -> Result<()> {
+    pub fn add_file(&mut self, path: PathBuf, file: &SourceFile) -> Result<()> {
         let file_index = FileIndex::create(&path, file)?;
 
         for symbol in file_index.symbols() {
@@ -112,7 +113,7 @@ impl SymbolIndex {
         Ok(())
     }
 
-    pub fn remove_file(&mut self, path: &Utf8PathBuf) -> Result<()> {
+    pub fn remove_file(&mut self, path: &PathBuf) -> Result<()> {
         let file_index = match self.symbols.get(path) {
             Some(x) => x,
             None => return Ok(()),
@@ -131,7 +132,7 @@ impl SymbolIndex {
         Ok(())
     }
 
-    pub fn update_file(&mut self, path: &Utf8PathBuf, new: &SourceFile) -> Result<()> {
+    pub fn update_file(&mut self, path: &PathBuf, new: &SourceFile) -> Result<()> {
         self.remove_file(path)?;
         self.add_file(path.to_owned(), new)
     }
@@ -148,7 +149,7 @@ impl FileIndex {
         Self { symbols, index }
     }
 
-    pub fn create(path: &Utf8PathBuf, file: &SourceFile) -> Result<Self> {
+    pub fn create(path: &PathBuf, file: &SourceFile) -> Result<Self> {
         let root = file.get_parse_tree();
 
         let symbols: Vec<_> = root
@@ -183,7 +184,7 @@ pub fn create_symbol_map(symbols: &[FileSymbol]) -> Result<fst::Map<Vec<u8>>> {
 }
 
 pub fn document_symbol(
-    path: &Utf8PathBuf,
+    path: &PathBuf,
     file: &SourceFile,
     index: usize,
     node: &Node,
