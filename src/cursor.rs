@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log::info;
 
 use crate::{
     file::SourceFile,
@@ -9,7 +10,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Cursor<'a> {
     current: &'a Node,
-    parents: Vec<&'a Node>,
+    parents: Vec<(&'a Node, usize)>,
 }
 
 #[derive(Debug)]
@@ -40,11 +41,18 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn parent(&self) -> Option<&'a Node> {
-        self.parents.last().copied()
+        self.parents.last().map(|x| x.0)
     }
 
     pub fn go_to_child(&mut self, child: &'a Node) {
-        self.parents.push(child);
+        let index = self
+            .current
+            .children()
+            .iter()
+            .position(|&x| x == child)
+            .expect("Could not find child");
+
+        self.parents.push((self.current, index));
         self.current = child;
     }
 
@@ -67,53 +75,43 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn go_to_parent(&mut self) -> Result<(), NoParentError> {
-        self.current = self.parents.pop().ok_or(NoParentError)?;
+        (self.current, _) = self.parents.pop().ok_or(NoParentError)?;
 
         Ok(())
     }
 
     pub fn go_to_next_sibling(&mut self) -> Result<(), SiblingError> {
-        let parent = self
+        let (parent, index) = self
             .parents
             .last()
             .ok_or(SiblingError::NoParent(NoParentError))?;
 
-        let index = parent
-            .children()
-            .iter()
-            .position(|&x| x == self.current)
-            .expect("Parent does not contain child");
-
-        if index == parent.children().len() - 1 {
+        if *index == parent.children().len() - 1 {
             return Err(SiblingError::NoMoreSiblings);
         }
 
-        self.go_to_child(parent.children()[index + 1]);
+        self.current = parent.children()[index + 1];
+        self.parents.last_mut().unwrap().1 += 1;
         Ok(())
     }
 
     pub fn go_to_previous_sibling(&mut self) -> Result<(), SiblingError> {
-        let parent = self
+        let (parent, index) = self
             .parents
             .last()
             .ok_or(SiblingError::NoParent(NoParentError))?;
 
-        let index = parent
-            .children()
-            .iter()
-            .position(|&x| x == self.current)
-            .expect("Parent does not contain child");
-
-        if index == 0 {
+        if *index == 0 {
             return Err(SiblingError::NoMoreSiblings);
         }
 
-        self.go_to_child(parent.children()[index - 1]);
+        self.current = parent.children()[index - 1];
+        self.parents.last_mut().unwrap().1 -= 1;
         Ok(())
     }
 
     pub fn reset(&mut self) {
-        if let Some(&root) = self.parents.first() {
+        if let Some((root, _)) = self.parents.first() {
             self.current = root;
             self.parents.clear();
         }
@@ -166,19 +164,19 @@ pub fn node_at_position(file: &SourceFile, position: FilePosition) -> Cursor {
     let parse_tree = file.get_parse_tree();
     let tokens = file.get_tokens();
 
-    let mut cursor = Cursor::new(parse_tree);
-    let children = cursor.children();
+    info!("Position: {:?}", position);
 
-    while !cursor.at_leaf() {
-        let child = children
-            .iter()
-            .find(|x| x.contains(position, tokens))
-            .unwrap();
+    let mut cursor = Cursor::new(parse_tree);
+
+    loop {
+        let children = cursor.children();
+        let child = match children.iter().find(|x| x.contains(position, tokens)) {
+            Some(x) => x,
+            None => return cursor,
+        };
 
         cursor.go_to_child(child);
     }
-
-    cursor
 }
 
 pub fn node_covering(file: &SourceFile, span: FileSpan) -> Cursor {

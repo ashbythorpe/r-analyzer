@@ -1,7 +1,8 @@
 use anyhow::Result;
+use fst::{automaton, IntoStreamer, Streamer};
 use std::{
     collections::{hash_map::Entry, HashMap},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -9,8 +10,7 @@ use crate::{
     grammar::TokenType,
     nodes::{Node, NodeType},
     package_index::{Arg, Symbol},
-    server::Server,
-    utils::path_to_uri,
+    server::FileContext,
 };
 
 pub struct SymbolIndex {
@@ -50,14 +50,17 @@ impl FileSymbol {
         self.node_index
     }
 
-    pub fn get_node<'a>(&self, server: &'a Server) -> Result<&'a Node> {
-        let tree = server.get_file(path_to_uri(self.file())?)?.get_parse_tree();
+    pub fn get_node<'a>(&self, context: &'a FileContext) -> Result<&'a Node> {
+        let tree = context
+            .get_file(self.file())
+            .ok_or_else(|| anyhow::anyhow!("File does not exist"))?
+            .get_parse_tree();
 
         Ok(tree.children()[self.node_index])
     }
 
-    pub fn get_assignee<'a>(&self, server: &'a Server) -> Result<&'a Node> {
-        let node = self.get_node(server)?;
+    pub fn get_assignee<'a>(&self, context: &'a FileContext) -> Result<&'a Node> {
+        let node = self.get_node(context)?;
 
         match node.node_type() {
             NodeType::Binary { op, lhs, rhs } => match op.token_type() {
@@ -142,6 +145,10 @@ impl SymbolIndex {
 
         self.symbols.get(path)?.symbols().get(*index)
     }
+
+    pub fn symbols(&self) -> &HashMap<PathBuf, FileIndex> {
+        &self.symbols
+    }
 }
 
 impl FileIndex {
@@ -149,10 +156,10 @@ impl FileIndex {
         Self { symbols, index }
     }
 
-    pub fn create(path: &PathBuf, file: &SourceFile) -> Result<Self> {
+    pub fn create(path: &Path, file: &SourceFile) -> Result<Self> {
         let root = file.get_parse_tree();
 
-        let symbols: Vec<_> = root
+        let mut symbols: Vec<_> = root
             .children()
             .into_iter()
             .filter(|x| !x.is_error())
@@ -160,7 +167,7 @@ impl FileIndex {
             .filter_map(|(i, x)| document_symbol(path, file, i, x))
             .collect();
 
-        let index = create_symbol_map(&symbols)?;
+        let index = create_symbol_map(&mut symbols)?;
 
         Ok(Self::new(symbols, index))
     }
@@ -172,9 +179,35 @@ impl FileIndex {
     pub fn index(&self) -> &fst::Map<Vec<u8>> {
         &self.index
     }
+
+    pub fn query_subsequence<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> fst::map::StreamBuilder<fst::automaton::Subsequence> {
+        let matcher = automaton::Subsequence::new(name);
+
+        self.index().search(matcher)
+    }
+
+    pub fn find_symbol(&self, name: &str) -> Option<&FileSymbol> {
+        let matcher = automaton::Str::new(name);
+
+        let mut stream = self.index().search(matcher).into_stream();
+
+        if let Some((_, v)) = stream.next() {
+            return Some(&self.symbols()[v as usize]);
+        }
+
+        None
+    }
+
+    pub fn get_symbol(&self, index: usize) -> Option<&FileSymbol> {
+        self.symbols().get(index)
+    }
 }
 
-pub fn create_symbol_map(symbols: &[FileSymbol]) -> Result<fst::Map<Vec<u8>>> {
+pub fn create_symbol_map(symbols: &mut [FileSymbol]) -> Result<fst::Map<Vec<u8>>> {
+    symbols.sort_by_key(|x| x.symbol.name().to_string());
     Ok(fst::Map::from_iter(
         symbols
             .iter()
@@ -184,7 +217,7 @@ pub fn create_symbol_map(symbols: &[FileSymbol]) -> Result<fst::Map<Vec<u8>>> {
 }
 
 pub fn document_symbol(
-    path: &PathBuf,
+    path: &Path,
     file: &SourceFile,
     index: usize,
     node: &Node,
@@ -217,7 +250,7 @@ pub fn document_symbol(
                     name,
                     signature: params,
                 },
-                file: path.clone(),
+                file: path.to_path_buf(),
                 node_index: index,
             });
         }
@@ -225,7 +258,7 @@ pub fn document_symbol(
 
     Some(FileSymbol {
         symbol: Symbol::Object { name },
-        file: path.clone(),
+        file: path.to_path_buf(),
         node_index: index,
     })
 }

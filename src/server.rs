@@ -1,130 +1,99 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    fs::File,
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
-use anyhow::Result;
-use lsp_types::TextDocumentContentChangeEvent;
+use anyhow::{bail, Result};
+use log::info;
+use lsp_types::{TextDocumentContentChangeEvent, Uri};
 use ropey::Rope;
 use tempdir::TempDir;
 
 use crate::{
-    description::{find_description, DescriptionFile},
     file::SourceFile,
-    package_index::{get_package_index, installed_packages, PackageIndex},
-    symbol_index::SymbolIndex,
+    package_index::{get_package_index, installed_packages, PackageIndex, Symbol},
+    symbol_index::FileSymbol,
     utils::parse_url,
+    workspace::{self, MultiFile, SingleFile, WorkSpace},
 };
 
 pub struct Server {
-    pub files: HashMap<PathBuf, SourceFile>,
-    root_dir: Option<PathBuf>,
-    description: Option<DescriptionFile>,
+    workspaces: HashMap<String, WorkSpace>,
     package_index: PackageIndex,
-    symbol_index: SymbolIndex,
     installed_packages: HashMap<String, PathBuf>,
     temp_dir: TempDir,
 }
 
 impl Server {
     pub fn new(
-        description: Option<DescriptionFile>,
-        root_dir: Option<PathBuf>,
+        workspaces: HashMap<String, WorkSpace>,
         package_index: PackageIndex,
-        symbol_index: SymbolIndex,
         installed_packages: HashMap<String, PathBuf>,
         temp_dir: TempDir,
     ) -> Self {
         Self {
-            files: HashMap::new(),
-            root_dir,
-            description,
             package_index,
-            symbol_index,
+            workspaces,
             installed_packages,
             temp_dir,
         }
     }
 
     pub fn initialize(params: lsp_types::InitializeParams) -> Result<Self> {
+        let workspaces_folders = params.workspace_folders;
+
+        let mut workspaces = HashMap::new();
+
+        info!("Initializing workspaces");
+
         #[allow(deprecated)]
-        let (root_dir, description, r_files) = if let Some(root_path) = params.root_uri {
-            let path = parse_url(root_path)?;
-            (
-                Some(path.clone()),
-                find_description(&path)?,
-                find_files(&path)?,
-            )
-        } else {
-            (None, None, None)
-        };
-
-        let mut files = HashMap::new();
-
-        if let Some(r_files) = r_files {
-            for file in r_files {
-                let text = Rope::from_reader(File::open(&file)?)?;
-                let source = SourceFile::parse(text);
-                files.insert(file, source);
+        if let Some(folders) = workspaces_folders {
+            for folder in folders {
+                if let Some(workspace) = MultiFile::create(folder.uri)? {
+                    workspaces.insert(folder.name, WorkSpace::MultiFile(workspace));
+                }
+            }
+        } else if let Some(root_path) = params.root_uri {
+            if let Some(workspace) = MultiFile::create(root_path.clone())? {
+                workspaces.insert(root_path.to_string(), WorkSpace::MultiFile(workspace));
             }
         }
 
-        let symbol_index = SymbolIndex::create(&files)?;
+        info!("Creating package index");
+        let package_index = get_package_index(workspaces.values().filter_map(|x| x.description()))?;
 
-        let package_index = get_package_index(&description)?;
-
+        info!("Getting installed packages");
         let installed_packages = installed_packages()?;
 
+        info!("Creating tempdir");
         let temp_dir = TempDir::new("r-analyzer")?;
 
         Ok(Self::new(
-            description,
-            root_dir,
+            workspaces,
             package_index,
-            symbol_index,
             installed_packages,
             temp_dir,
         ))
     }
 
-    pub fn add_file(&mut self, uri: lsp_types::Uri, text: Rope) -> anyhow::Result<()> {
+    pub fn add_file(&mut self, uri: &lsp_types::Uri, text: Rope) -> anyhow::Result<()> {
         let path = parse_url(uri)?;
-        let parsed = SourceFile::parse(text);
-        self.symbol_index.add_file(path.clone(), &parsed)?;
-        self.files.insert(path, parsed);
+        let workspace = self
+            .workspaces
+            .values_mut()
+            .find(|x| path.starts_with(x.path()));
 
-        Ok(())
-    }
-
-    pub fn get_file(&self, path: lsp_types::Uri) -> anyhow::Result<&SourceFile> {
-        let path = parse_url(path)?;
-
-        self.files
-            .get(&path)
-            .ok_or_else(|| anyhow::anyhow!("File does not exist"))
-    }
-
-    pub fn get_path(&self, path: &PathBuf) -> Result<&SourceFile> {
-        self.files
-            .get(path)
-            .ok_or_else(|| anyhow::anyhow!("File does not exist"))
-    }
-
-    pub fn get_or_insert_file(&mut self, path: lsp_types::Uri) -> anyhow::Result<&mut SourceFile> {
-        let path = parse_url(path)?;
-
-        let entry = self.files.entry(path.clone());
-
-        match entry {
-            Entry::Occupied(x) => Ok(x.into_mut()),
-            Entry::Vacant(x) => {
-                let text = Rope::from_reader(File::open(&path)?)?;
-                let parsed = SourceFile::parse(text);
-                self.symbol_index.add_file(path.clone(), &parsed)?;
-                Ok(x.insert(parsed))
+        match workspace {
+            Some(WorkSpace::SingleFile(_)) => panic!("Redefinition of existing file"),
+            Some(WorkSpace::MultiFile(x)) => {
+                x.add_file(path, text)?;
+            }
+            None => {
+                self.workspaces.insert(
+                    uri.to_string(),
+                    WorkSpace::SingleFile(SingleFile::create(path, text)?),
+                );
             }
         }
+
+        Ok(())
     }
 
     pub fn update_file(
@@ -132,34 +101,82 @@ impl Server {
         path: lsp_types::Uri,
         changes: Vec<TextDocumentContentChangeEvent>,
     ) -> Result<()> {
-        let path = parse_url(path)?;
+        let path = parse_url(&path)?;
 
-        let file = self
-            .files
-            .get_mut(&path)
-            .ok_or_else(|| anyhow::anyhow!("File does not exist"))?;
+        let workspace = self
+            .workspaces
+            .values_mut()
+            .find(|workspace| path.starts_with(workspace.path()))
+            .ok_or_else(|| anyhow::anyhow!("Workspace not found"))?;
 
-        file.update(changes);
-
-        self.symbol_index.update_file(&path, file)?;
+        match workspace {
+            WorkSpace::SingleFile(x) => x.file_mut().update(changes),
+            WorkSpace::MultiFile(x) => {
+                x.update_file(path, changes)?;
+            }
+        }
 
         Ok(())
     }
 
-    pub fn remove_file(&mut self, uri: lsp_types::Uri) -> anyhow::Result<()> {
+    pub fn remove_file(&mut self, uri: &lsp_types::Uri) -> anyhow::Result<()> {
         let path = parse_url(uri)?;
-        self.files.remove(&path);
-        self.symbol_index.remove_file(&path)?;
+
+        let (name, workspace) = self
+            .workspaces
+            .iter_mut()
+            .find(|(_, workspace)| path.starts_with(workspace.path()))
+            .ok_or_else(|| anyhow::anyhow!("Workspace not found"))?;
+
+        match workspace {
+            WorkSpace::SingleFile(_) => {
+                let name = name.clone();
+                self.workspaces.remove(&name);
+            }
+            WorkSpace::MultiFile(x) => {
+                x.remove_file(&path)?;
+            }
+        }
 
         Ok(())
     }
 
-    pub fn description(&self) -> Option<&DescriptionFile> {
-        self.description.as_ref()
+    pub fn file_context(&self, uri: &lsp_types::Uri) -> Result<FileContext> {
+        let path = parse_url(uri)?;
+        let workspace = match self
+            .workspaces
+            .values()
+            .find(|x| path.starts_with(x.path()))
+        {
+            Some(x) => x,
+            None => bail!("Workspace not found"),
+        };
+
+        let file = match workspace {
+            WorkSpace::SingleFile(x) => x.file(),
+            WorkSpace::MultiFile(x) => match x.get_file(&path) {
+                Some(x) => x,
+                None => bail!("File not found"),
+            },
+        };
+
+        Ok(FileContext::new(uri.clone(), path, workspace, file))
     }
 
-    pub fn package_index(&self) -> &PackageIndex {
-        &self.package_index
+    pub fn source_file(&self, uri: &lsp_types::Uri) -> Result<&SourceFile> {
+        let path = parse_url(uri)?;
+        let workspace = match self
+            .workspaces
+            .values()
+            .find(|x| path.starts_with(x.path()))
+        {
+            Some(x) => x,
+            None => bail!("Workspace not found"),
+        };
+
+        workspace
+            .get_file(&path)
+            .ok_or_else(|| anyhow::anyhow!("File not found"))
     }
 
     pub fn installed_packages(&self) -> &HashMap<String, PathBuf> {
@@ -170,37 +187,52 @@ impl Server {
         &self.temp_dir
     }
 
-    pub fn symbol_index(&self) -> &SymbolIndex {
-        &self.symbol_index
-    }
-
-    pub fn root_dir(&self) -> Option<&PathBuf> {
-        self.root_dir.as_ref()
+    pub fn package_index(&self) -> &PackageIndex {
+        &self.package_index
     }
 }
 
-fn find_files(path: &PathBuf) -> Result<Option<Vec<PathBuf>>> {
-    let r_path = match path
-        .read_dir()?
-        .filter_map(|x| x.ok())
-        .find(|x| x.file_type().is_ok_and(|t| t.is_dir()) && x.file_name() == "R")
-        .map(|x| x.path())
-    {
-        Some(x) => x,
-        None => return Ok(None),
-    };
+pub struct FileContext<'a> {
+    uri: Uri,
+    file: PathBuf,
+    workspace: &'a WorkSpace,
+    source_file: &'a SourceFile,
+}
 
-    let files = r_path
-        .read_dir()?
-        .filter_map(|x| x.ok())
-        .filter(|x| {
-            x.file_type().is_ok_and(|x| x.is_file())
-                && x.path()
-                    .extension()
-                    .is_some_and(|x| x.to_str() == Some("R"))
-        })
-        .map(|x| x.path())
-        .collect();
+impl<'a> FileContext<'a> {
+    fn new(uri: Uri, file: PathBuf, workspace: &'a WorkSpace, source_file: &'a SourceFile) -> Self {
+        Self {
+            uri,
+            file,
+            workspace,
+            source_file,
+        }
+    }
 
-    Ok(Some(files))
+    pub fn uri(&self) -> &Uri {
+        &self.uri
+    }
+
+    pub fn file(&self) -> &PathBuf {
+        &self.file
+    }
+
+    pub fn workspace(&self) -> &WorkSpace {
+        self.workspace
+    }
+
+    pub fn source_file(&self) -> &SourceFile {
+        self.source_file
+    }
+
+    pub fn get_file(&self, path: &PathBuf) -> Option<&SourceFile> {
+        self.workspace.get_file(path)
+    }
+
+    pub fn find_symbol(&self, name: &str) -> Option<&FileSymbol> {
+        match self.workspace {
+            WorkSpace::SingleFile(x) => x.index().find_symbol(name),
+            WorkSpace::MultiFile(x) => x.symbol_index().find_symbol(name),
+        }
+    }
 }

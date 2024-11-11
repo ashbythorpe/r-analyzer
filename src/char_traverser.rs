@@ -1,12 +1,12 @@
 use ropey::{iter::Chars, Rope};
 
-use crate::grammar::FileSpan;
+use crate::grammar::{FilePosition, FileSpan};
 
 /// A wrapper around [Chars] that allows for a few operations that are useful during lexing.
 pub struct CharTraverser<'a> {
     chars: Chars<'a>,
     stored_string: String,
-    next: String,
+    next: Option<char>,
     start_line: usize,
     start_column: usize,
     line: usize,
@@ -18,7 +18,7 @@ impl<'a> CharTraverser<'a> {
         CharTraverser {
             chars: input.chars(),
             stored_string: String::new(),
-            next: String::new(),
+            next: None,
             start_line: 0,
             start_column: 0,
             line: 0,
@@ -28,7 +28,7 @@ impl<'a> CharTraverser<'a> {
 
     /// Get the next character
     pub fn next(&mut self) -> Option<char> {
-        let next = match self.next.pop() {
+        let next = match self.next.take() {
             Some(x) => x,
             None => self.chars.next()?,
         };
@@ -47,7 +47,7 @@ impl<'a> CharTraverser<'a> {
 
     /// Get the next character if it matches a condition
     pub fn next_if(&mut self, mut accept: impl FnMut(char) -> bool) -> Option<char> {
-        let next = match self.next.pop() {
+        let next = match self.next.take() {
             Some(x) => x,
             None => self.chars.next()?,
         };
@@ -63,7 +63,7 @@ impl<'a> CharTraverser<'a> {
             self.stored_string.push(next);
             Some(next)
         } else {
-            self.next.push(next);
+            self.next.replace(next);
             None
         }
     }
@@ -75,7 +75,7 @@ impl<'a> CharTraverser<'a> {
 
     /// Get the next character while it matches a condition
     pub fn next_while(&mut self, mut accept: impl FnMut(char) -> bool) {
-        let mut next = match self.next.pop() {
+        let mut next = match self.next.take() {
             Some(x) => x,
             None => match self.chars.next() {
                 Some(x) => x,
@@ -93,7 +93,7 @@ impl<'a> CharTraverser<'a> {
 
             self.stored_string.push(next);
 
-            next = match self.next.pop() {
+            next = match self.next.take() {
                 Some(x) => x,
                 None => match self.chars.next() {
                     Some(x) => x,
@@ -102,7 +102,7 @@ impl<'a> CharTraverser<'a> {
             };
         }
 
-        self.next.push(next);
+        self.next.replace(next);
     }
 
     /// Get the next character while it matches any of the characters in `accept`,
@@ -110,7 +110,7 @@ impl<'a> CharTraverser<'a> {
     pub fn count_next(&mut self, accept: impl Fn(char) -> bool) -> usize {
         let mut count = 0;
 
-        let mut next = match self.next.pop() {
+        let mut next = match self.next.take() {
             Some(x) => x,
             None => match self.chars.next() {
                 Some(x) => x,
@@ -130,7 +130,7 @@ impl<'a> CharTraverser<'a> {
 
             self.stored_string.push(next);
 
-            next = match self.next.pop() {
+            next = match self.next.take() {
                 Some(x) => x,
                 None => match self.chars.next() {
                     Some(x) => x,
@@ -139,7 +139,7 @@ impl<'a> CharTraverser<'a> {
             };
         }
 
-        self.next.push(next);
+        self.next.replace(next);
 
         count
     }
@@ -154,7 +154,16 @@ impl<'a> CharTraverser<'a> {
     ///
     /// Resets the stored string to an empty string
     pub fn take_stored_string(&mut self) -> (String, FileSpan) {
-        let span = FileSpan::new(self.start_line, self.start_column, self.line, self.column);
+        let (end_line, end_column) = if self.column == 0 {
+            (self.line, self.column)
+        } else {
+            (self.line, self.column - 1)
+        };
+
+        let span = FileSpan::new(
+            FilePosition::new(self.start_line, self.start_column),
+            FilePosition::new(end_line, end_column),
+        );
         self.start_line = self.line;
         self.start_column = self.column;
         (self.stored_string.drain(..).collect(), span)

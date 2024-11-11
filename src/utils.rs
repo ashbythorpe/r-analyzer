@@ -11,7 +11,7 @@ use crate::{
     nodes::{Node, NodeType},
 };
 
-pub fn parse_url(uri: lsp_types::Uri) -> Result<PathBuf> {
+pub fn parse_url(uri: &lsp_types::Uri) -> Result<PathBuf> {
     let url = Url::parse(uri.as_str())?;
 
     let path = match url.to_file_path() {
@@ -75,5 +75,13 @@ fn into_arg(node: &Node) -> Arg {
             node,
         },
         _ => panic!("Expected form list item"),
+    }
+}
+
+pub fn node_value(node: &Node) -> Option<String> {
+    match node.node_type() {
+        NodeType::Symbol { value } => Some(value.clone()),
+        NodeType::LiteralString { value } => Some(value.clone()),
+        _ => None,
     }
 }

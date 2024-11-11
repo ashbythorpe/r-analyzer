@@ -31,15 +31,12 @@ pub struct FileSpan {
 }
 
 impl FileSpan {
-    pub fn new(start_line: usize, start_column: usize, end_line: usize, end_column: usize) -> Self {
-        Self {
-            start: FilePosition::new(start_line, start_column),
-            end: FilePosition::new(end_line, end_column),
-        }
+    pub fn new(start: FilePosition, end: FilePosition) -> Self {
+        Self { start, end }
     }
 
     pub fn single(line: usize, column: usize) -> Self {
-        Self::new(line, column, line, column)
+        Self::new(FilePosition { line, column }, FilePosition { line, column })
     }
 
     pub fn positions(&self) -> (FilePosition, FilePosition) {
@@ -333,7 +330,7 @@ impl Span {
     }
 
     pub fn slice<'a, T>(&self, x: &'a [T]) -> &'a [T] {
-        &x[self.start..self.end]
+        &x[self.start..=self.end]
     }
 
     pub fn iter(&self) -> std::ops::Range<usize> {

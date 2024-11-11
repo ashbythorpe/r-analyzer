@@ -14,7 +14,8 @@ pub fn document_symbols(
     server: &Server,
     params: lsp_types::DocumentSymbolParams,
 ) -> Result<Vec<DocumentSymbol>> {
-    let file = server.get_file(params.text_document.uri)?;
+    let context = server.file_context(&params.text_document.uri)?;
+    let file = context.source_file();
 
     let root = file.get_parse_tree();
 

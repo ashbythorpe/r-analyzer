@@ -9,9 +9,11 @@ use std::{
 
 use anyhow::Result;
 
+use fst::automaton::Subsequence;
 use fst::map::{IndexedValue, OpBuilder};
 use fst::{automaton, Streamer};
 use fst::{automaton::Str, Map};
+use log::info;
 
 use crate::description::DescriptionFile;
 
@@ -157,6 +159,12 @@ impl Package {
         self.export_map.search(matcher)
     }
 
+    pub fn query_subsequence<'a>(&'a self, name: &'a str) -> fst::map::StreamBuilder<Subsequence> {
+        let matcher = automaton::Subsequence::new(name);
+
+        self.export_map.search(matcher)
+    }
+
     pub fn get_exported_symbol(&self, i: u64) -> &Symbol {
         &self.exported[i as usize]
     }
@@ -199,52 +207,56 @@ impl Arg {
         Self { name, default }
     }
 
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    fn default(&self) -> Option<&String> {
+    pub fn default(&self) -> Option<&String> {
         self.default.as_ref()
     }
 }
 
-pub fn get_package_index(description: &Option<DescriptionFile>) -> Result<PackageIndex> {
-    let base_packages = vec![
-        "base",
-        "compiler",
-        "datasets",
-        "graphics",
-        "grDevices",
-        "grid",
-        "methods",
-        "parallel",
-        "splines",
-        "stats",
-        "stats4",
-        "tcltk",
-        "tools",
-        "utils",
-    ];
-    let recommended_packages = vec![
-        "boot",
-        "MASS",
-        "Matrix",
-        "survival",
-        "boot",
-        "class",
-        "cluster",
-        "codetools",
-        "foreign",
-        "KernSmooth",
-        "lattice",
-        "MASS",
-        "Matrix",
-        "mgcv",
-        "nnet",
-        "rpart",
-        "spatial",
-        "survival",
-    ];
+pub fn get_package_index<'a>(
+    description: impl Iterator<Item = &'a DescriptionFile>,
+) -> Result<PackageIndex> {
+    let base_packages = vec!["base"];
+    let recommended_packages = vec![];
+    // let base_packages = vec![
+    //     "base",
+    //     "compiler",
+    //     "datasets",
+    //     "graphics",
+    //     "grDevices",
+    //     "grid",
+    //     "methods",
+    //     "parallel",
+    //     "splines",
+    //     "stats",
+    //     "stats4",
+    //     "tcltk",
+    //     "tools",
+    //     "utils",
+    // ];
+    // let recommended_packages = vec![
+    //     "boot",
+    //     "MASS",
+    //     "Matrix",
+    //     "survival",
+    //     "boot",
+    //     "class",
+    //     "cluster",
+    //     "codetools",
+    //     "foreign",
+    //     "KernSmooth",
+    //     "lattice",
+    //     "MASS",
+    //     "Matrix",
+    //     "mgcv",
+    //     "nnet",
+    //     "rpart",
+    //     "spatial",
+    //     "survival",
+    // ];
 
     let mut packages = HashMap::new();
 
@@ -252,7 +264,7 @@ pub fn get_package_index(description: &Option<DescriptionFile>) -> Result<Packag
 
     add_packages(&mut packages, &recommended_packages)?;
 
-    if let Some(description_file) = description {
+    for description_file in description {
         let description = &description_file.description;
         if let Some(x) = description.depends() {
             add_packages_string(&mut packages, x)?;
@@ -277,6 +289,7 @@ pub fn get_package_index(description: &Option<DescriptionFile>) -> Result<Packag
 fn add_packages(packages: &mut HashMap<String, Package>, names: &Vec<&str>) -> Result<()> {
     for name in names {
         if let Entry::Vacant(x) = packages.entry(name.to_string()) {
+            info!("Adding package {}", name);
             x.insert(get_package_symbols(name.to_string())?);
         }
     }
@@ -294,7 +307,9 @@ fn add_packages_string(packages: &mut HashMap<String, Package>, names: &Vec<Stri
     Ok(())
 }
 
-fn get_symbol_map(symbols: &[Symbol]) -> Result<Map<Vec<u8>>> {
+fn get_symbol_map(symbols: &mut [Symbol]) -> Result<Map<Vec<u8>>> {
+    symbols.sort_by_key(|x| x.name().to_string());
+
     Ok(Map::from_iter(
         symbols
             .iter()
@@ -325,7 +340,7 @@ fn get_package_symbols(package: String) -> Result<Package> {
         }
     }
 
-    let export_map = get_symbol_map(&exported)?;
+    let export_map = get_symbol_map(&mut exported)?;
 
     Ok(Package::new(package, exported, not_exported, export_map))
 }

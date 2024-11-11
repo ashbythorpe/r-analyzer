@@ -1,8 +1,14 @@
 use core::panic;
 
+use handlers::completion::propose_completions;
 use handlers::definition::go_to_definition;
 use handlers::document_symbols::document_symbols;
 use handlers::expand_selection;
+use handlers::hover::hover;
+use handlers::references::find_references;
+use log::info;
+use log::LevelFilter;
+use lsp_types::OneOf;
 use server::Server;
 
 use anyhow::Result;
@@ -13,6 +19,10 @@ use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 use ropey::Rope;
+use simplelog::ColorChoice;
+use simplelog::Config;
+use simplelog::TermLogger;
+use simplelog::TerminalMode;
 
 #[macro_use]
 mod macros;
@@ -31,15 +41,33 @@ mod parser;
 mod server;
 mod symbol_index;
 mod utils;
+mod workspace;
 
 fn main() -> Result<()> {
+    TermLogger::init(
+        LevelFilter::Info,
+        Config::default(),
+        TerminalMode::Stderr,
+        ColorChoice::Auto,
+    )?;
+
     let (connection, io_threads) = Connection::stdio();
 
     let server_capabilites = serde_json::to_value(&ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        definition_provider: OneOf::Left(true).into(),
+        references_provider: OneOf::Left(true).into(),
+        hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
+        selection_range_provider: Some(true.into()),
+        document_symbol_provider: Some(OneOf::Left(true)),
+        completion_provider: Some(lsp_types::CompletionOptions {
+            ..Default::default()
+        }),
         ..Default::default()
     })
     .unwrap();
+
+    info!("Waiting for connection to initialize");
 
     let initialization_params: InitializeParams = match connection.initialize(server_capabilites) {
         Ok(x) => serde_json::from_value(x)?,
@@ -52,15 +80,29 @@ fn main() -> Result<()> {
         }
     };
 
-    main_loop(connection, initialization_params)?;
+    info!("Connection initialized");
 
-    Ok(())
+    let position_encodings = initialization_params
+        .capabilities
+        .general
+        .as_ref()
+        .and_then(|x| x.position_encodings.as_ref());
+
+    info!("Position encoding: {:?}", position_encodings);
+
+    main_loop(connection, initialization_params)
 }
 
 fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
+    info!("Initializing server");
+
     let mut server = Server::initialize(params)?;
 
+    info!("Server initialized");
+
     for message in &connection.receiver {
+        info!("Got message");
+        info!("{:#?}", message);
         match message {
             Message::Request(request) => {
                 if connection.handle_shutdown(&request)? {
@@ -90,9 +132,14 @@ fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
                         connection.sender.send(Message::Response(response))?;
                     }
                     "textDocument/definition" => {
+                        info!("textDocument/definition");
                         let (id, params) = cast_request::<lsp_request::GotoDefinition>(request)?;
 
+                        info!("Params: {:#?}", params);
+
                         let result = go_to_definition(&server, params)?;
+
+                        info!("textDocument/definition result: {:#?}", result);
                         let response = Response::new_ok(id, result);
 
                         connection.sender.send(Message::Response(response))?;
@@ -100,7 +147,23 @@ fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
                     "textDocument/references" => {
                         let (id, params) = cast_request::<lsp_request::References>(request)?;
 
-                        let result = handlers::references::find_references(&server, params)?;
+                        let result = find_references(&server, params)?;
+                        let response = Response::new_ok(id, result);
+
+                        connection.sender.send(Message::Response(response))?;
+                    }
+                    "textDocument/hover" => {
+                        let (id, params) = cast_request::<lsp_request::HoverRequest>(request)?;
+
+                        let result = hover(&server, params)?;
+                        let response = Response::new_ok(id, result);
+
+                        connection.sender.send(Message::Response(response))?;
+                    }
+                    "textDocument/completion" => {
+                        let (id, params) = cast_request::<lsp_request::Completion>(request)?;
+
+                        let result = propose_completions(&server, params)?;
                         let response = Response::new_ok(id, result);
 
                         connection.sender.send(Message::Response(response))?;
@@ -118,9 +181,11 @@ fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
                     let params =
                         cast_notification::<notification::DidOpenTextDocument>(notification)?;
 
+                    info!("Opening file: {:?}", params);
+
                     let document = params.text_document;
 
-                    server.add_file(document.uri, Rope::from(document.text))?;
+                    server.add_file(&document.uri, Rope::from(document.text))?;
                 }
                 "textDocument/didChange" => {
                     let params =
@@ -132,8 +197,9 @@ fn main_loop(connection: Connection, params: InitializeParams) -> Result<()> {
                     let params =
                         cast_notification::<notification::DidCloseTextDocument>(notification)?;
 
-                    server.remove_file(params.text_document.uri)?;
+                    server.remove_file(&params.text_document.uri)?;
                 }
+                "textDocument/didSave" => {}
                 _ => {
                     return Err(anyhow::anyhow!(
                         "Unexpected notification: {:?}",

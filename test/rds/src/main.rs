@@ -9,8 +9,6 @@ use anyhow::Result;
 
 use flate2::bufread::GzDecoder;
 
-fn read_package_info() {}
-
 type Decoder = GzDecoder<BufReader<File>>;
 
 fn main() {

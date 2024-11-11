@@ -1,16 +1,15 @@
-use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::Result;
 use lsp_types::{Location, Uri};
 use memchr::memmem::Finder;
-use walkdir::WalkDir;
 
 use crate::{
     cursor::{go_to_node, node_at_position, Cursor},
     file::SourceFile,
     grammar::FilePosition,
     nodes::{Node, NodeType},
-    server::Server,
+    server::{FileContext, Server},
     utils::{iter_args, path_to_uri, split_assignment, Arg},
 };
 
@@ -22,12 +21,11 @@ pub fn find_references(
 ) -> Result<Vec<lsp_types::Location>> {
     let include_declaration = params.context.include_declaration;
 
-    let uri = params.text_document_position.text_document.uri;
-    let file = server.get_file(uri.clone())?;
+    let context = server.file_context(&params.text_document_position.text_document.uri)?;
 
     let position = params.text_document_position.position.into();
 
-    let definition = get_definition(server, file, uri.clone(), position)?;
+    let definition = get_definition(server, &context, position)?;
 
     let exclude = if include_declaration {
         None
@@ -43,11 +41,12 @@ pub fn find_references(
     };
 
     Ok(match definition {
-        Some(Definition::FileSymbol { uri, file, node }) => {
-            node_references(server, &uri, file, node, position, exclude)?
+        Some(Definition::FileSymbol { uri, file: _, node }) => {
+            let context = server.file_context(&uri)?;
+            node_references(&context, node, position, exclude)?
         }
         Some(Definition::PackageSymbol { package, name }) => {
-            namespace_references(server, &uri, file, package.clone(), name.clone(), exclude)?
+            namespace_references(&context, package.clone(), name.clone(), exclude)?
         }
         Some(Definition::Param {
             function: _,
@@ -59,10 +58,8 @@ pub fn find_references(
     })
 }
 
-fn namespace_references<'a>(
-    server: &'a Server,
-    uri: &Uri,
-    file: &'a SourceFile,
+fn namespace_references(
+    context: &FileContext,
     package: String,
     name: String,
     exclude: Option<&Node>,
@@ -73,49 +70,30 @@ fn namespace_references<'a>(
 
     let finder = pattern.finder();
 
-    if let Some(root) = server.root_dir() {
-        for entry in WalkDir::new(root)
-            .into_iter()
-            .filter_map(|x| x.ok())
-            .filter(|x| {
-                x.file_type().is_file()
-                    && x.path().extension().and_then(|x| x.to_str()) == Some("R")
-            })
-        {
-            search_file(
-                server,
-                &mut references,
-                &finder,
-                entry.path(),
-                &pattern,
-                uri,
-                exclude,
-            )?
-        }
-    } else {
-        search(
-            &mut references,
-            uri,
+    let workspace = context.workspace();
+
+    for (path, file) in workspace.files() {
+        search_file(
+            path,
             file,
-            Cursor::new(file.get_parse_tree()),
+            &mut references,
+            &finder,
             &pattern,
-            false,
+            context.uri(),
             exclude,
-        );
+        )?;
     }
 
     Ok(references)
 }
 
 fn node_references<'a>(
-    server: &'a Server,
-    uri: &Uri,
-    file: &'a SourceFile,
+    context: &'a FileContext,
     node: &'a Node,
     position: FilePosition,
     exclude: Option<&Node>,
 ) -> Result<Vec<Location>> {
-    let original_node = node_at_position(file, position).current();
+    let original_node = node_at_position(context.source_file(), position).current();
 
     let name = match original_node.node_type() {
         NodeType::Placeholder => return Ok(Vec::new()),
@@ -133,42 +111,23 @@ fn node_references<'a>(
         Pattern::Name(name.to_string())
     };
 
-    let mut cursor = go_to_node(file, node);
+    let mut cursor = go_to_node(context.source_file(), node);
 
     let mut references = Vec::new();
 
     if cursor.is_top_level() {
         let finder = pattern.finder();
 
-        if let Some(root) = server.root_dir() {
-            for entry in WalkDir::new(root)
-                .into_iter()
-                .filter_map(|x| x.ok())
-                .filter(|x| {
-                    x.file_type().is_file()
-                        && x.path().extension().and_then(|x| x.to_str()) == Some("R")
-                })
-            {
-                search_file(
-                    server,
-                    &mut references,
-                    &finder,
-                    entry.path(),
-                    &pattern,
-                    uri,
-                    exclude,
-                )?
-            }
-        } else {
-            search(
-                &mut references,
-                uri,
+        for (path, file) in context.workspace().files() {
+            search_file(
+                path,
                 file,
-                Cursor::new(file.get_parse_tree()),
+                &mut references,
+                &finder,
                 &pattern,
-                false,
+                context.uri(),
                 exclude,
-            );
+            )?;
         }
     } else {
         match node.node_type() {
@@ -177,8 +136,8 @@ fn node_references<'a>(
 
                 search(
                     &mut references,
-                    uri,
-                    file,
+                    context.uri(),
+                    context.source_file(),
                     cursor.to_child(rhs),
                     &pattern,
                     false,
@@ -189,8 +148,8 @@ fn node_references<'a>(
                 while cursor_right.go_to_next_sibling().is_ok() {
                     search(
                         &mut references,
-                        uri,
-                        file,
+                        context.uri(),
+                        context.source_file(),
                         cursor_right.clone(),
                         &pattern,
                         false,
@@ -202,8 +161,8 @@ fn node_references<'a>(
                 while cursor_left.go_to_previous_sibling().is_ok() {
                     search(
                         &mut references,
-                        uri,
-                        file,
+                        context.uri(),
+                        context.source_file(),
                         cursor_left.clone(),
                         &pattern,
                         false,
@@ -233,8 +192,8 @@ fn node_references<'a>(
 
                         search(
                             &mut references,
-                            uri,
-                            file,
+                            context.uri(),
+                            context.source_file(),
                             arg_cursor,
                             &pattern,
                             false,
@@ -247,8 +206,8 @@ fn node_references<'a>(
                     NodeType::Function { args: _, body } => {
                         search(
                             &mut references,
-                            uri,
-                            file,
+                            context.uri(),
+                            context.source_file(),
                             function_cursor.to_child(body),
                             &pattern,
                             false,
@@ -266,29 +225,27 @@ fn node_references<'a>(
 }
 
 fn search_file(
-    server: &Server,
+    path: &PathBuf,
+    file: &SourceFile,
     references: &mut Vec<Location>,
     finder: &PatternFinder,
-    path: &Path,
     pattern: &Pattern,
     original_uri: &Uri,
     exclude: Option<&Node>,
 ) -> Result<()> {
-    let file = server.get_path(&path.to_path_buf())?;
-
     let contents = file.get_content();
 
     let bytes: Vec<_> = contents.bytes().collect();
 
-    if !finder.search(&bytes) {
+    let uri = path_to_uri(path)?;
+
+    if &uri != original_uri && !finder.search(&bytes) {
         return Ok(());
     }
 
     let root = file.get_parse_tree();
 
     let cursor = Cursor::new(root);
-
-    let uri = path_to_uri(path)?;
 
     let exclude = if &uri == original_uri { exclude } else { None };
 

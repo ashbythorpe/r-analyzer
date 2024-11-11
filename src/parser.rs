@@ -2,6 +2,7 @@ use core::panic;
 use std::iter::{Enumerate, Peekable};
 use std::slice::Iter;
 
+use log::info;
 use ropey::Rope;
 
 use crate::grammar::{Span, Token, TokenType};
@@ -91,6 +92,7 @@ pub fn parse(tokens: &[Token]) -> (Node, Vec<ParseError>) {
     }
 
     while peek_token(&mut tokens, true).is_some() {
+        info!("Parsing expression");
         exprs.push(parse_expr(
             &mut tokens,
             &mut errors,
@@ -101,6 +103,7 @@ pub fn parse(tokens: &[Token]) -> (Node, Vec<ParseError>) {
             &[],
         ));
 
+        info!("Consuming whitespace");
         if let Some(node) = get_whitespace_after_expr(&mut tokens, &mut errors) {
             exprs.push(node);
         }
@@ -165,6 +168,7 @@ fn get_whitespace_after_expr(tokens: &mut Tokens, errors: &mut Vec<ParseError>) 
                     || *token.token_type() == TokenType::NewLine =>
             {
                 end = i;
+                break;
             }
             None => {
                 break;
@@ -917,12 +921,13 @@ fn parse_namespace(
                 Some(span.clone()),
             ));
         }
+
         rhs.as_error()
     } else {
         rhs
     };
 
-    let end = rhs.span().expect("rhs should not be empty").end();
+    let end = rhs.span().map_or(start, |span| span.end());
 
     Node::non_empty(
         NodeType::NameSpace {
@@ -975,7 +980,7 @@ fn parse_extraction(
         rhs
     };
 
-    let end = rhs.span().expect("rhs should not be empty").end();
+    let end = rhs.span().map_or(start, |span| span.end());
 
     Node::non_empty(
         NodeType::Extract {
@@ -1410,8 +1415,8 @@ fn parse_sublist_item(
     errors: &mut Vec<ParseError>,
     context: &[TokenType],
 ) -> Option<Node> {
-    if peek_token(tokens, true).is_some_and(|(_, token)| {
-        token.token_type() == &TokenType::Comma || is_closing(token.token_type(), context)
+    if !peek_token(tokens, true).is_some_and(|(_, token)| {
+        token.token_type() != &TokenType::Comma && !is_closing(token.token_type(), context)
     }) {
         return None;
     }
@@ -1478,8 +1483,8 @@ fn parse_formlist_item(
     errors: &mut Vec<ParseError>,
     context: &[TokenType],
 ) -> Option<Node> {
-    if peek_token(tokens, true).is_some_and(|(_, token)| {
-        token.token_type() == &TokenType::Comma || is_closing(token.token_type(), context)
+    if !peek_token(tokens, true).is_some_and(|(_, token)| {
+        token.token_type() != &TokenType::Comma && !is_closing(token.token_type(), context)
     }) {
         return None;
     }

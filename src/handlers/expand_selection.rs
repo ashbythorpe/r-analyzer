@@ -11,7 +11,8 @@ pub fn selection_range(
     server: &Server,
     params: lsp_types::SelectionRangeParams,
 ) -> Result<Vec<lsp_types::SelectionRange>> {
-    let file = server.get_file(params.text_document.uri)?;
+    let context = server.file_context(&params.text_document.uri)?;
+    let file = context.source_file();
 
     Ok(params
         .positions

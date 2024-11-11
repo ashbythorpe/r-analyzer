@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Result;
 
-use crate::grammar::FileSpan;
+use crate::grammar::{FilePosition, FileSpan};
 
 pub fn find_description(path: &Path) -> Result<Option<DescriptionFile>> {
     path.read_dir()?
@@ -86,13 +86,19 @@ pub fn read_description(file: PathBuf) -> Result<DescriptionFile> {
         if !seen_colon {
             errors.push(DescriptionError {
                 error_type: DescriptionErrorType::ExpectedColon,
-                span: Some(FileSpan::new(line_number, end, line_number, end)),
+                span: Some(FileSpan::new(
+                    FilePosition::new(line_number, end),
+                    FilePosition::new(line_number, end),
+                )),
             });
             continue;
         }
 
         field = Some(string_field);
-        field_span = Some(FileSpan::new(line_number, 0, line_number, end));
+        field_span = Some(FileSpan::new(
+            FilePosition::new(line_number, 0),
+            FilePosition::new(line_number, end),
+        ));
 
         consume_whitespace(&mut chars);
 

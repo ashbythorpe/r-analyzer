@@ -1,3 +1,4 @@
+use log::info;
 use lsp_types::TextDocumentContentChangeEvent;
 use ropey::{Rope, RopeSlice};
 
@@ -34,9 +35,15 @@ impl SourceFile {
     }
 
     pub fn parse(content: Rope) -> Self {
+        info!("Lexing file");
         let (tokens, lexer_errors) = lex(&content);
 
+        info!("Lexing result: {:#?}", tokens);
+
+        info!("Parsing tokens");
         let (parse_tree, parse_errors) = parse(&tokens);
+
+        info!("Parse result: {:?}", parse_tree);
         Self::new(content, tokens, parse_tree, lexer_errors, parse_errors)
     }
 
@@ -94,12 +101,20 @@ impl SourceFile {
     pub fn whole_document(&self) -> FileSpan {
         let lines = self.content.len_lines();
         let line_pos = self.content.line_to_char(lines - 1);
-        FileSpan::new(0, 0, lines, self.content.len_chars() - line_pos)
+        FileSpan::new(
+            FilePosition::new(0, 0),
+            FilePosition::new(lines, self.content.len_chars() - line_pos),
+        )
     }
 
     pub fn get_node_text(&self, node: &Node) -> Option<RopeSlice> {
         let (start, end) = node.text_span(&self.tokens)?.get_char_span(&self.content);
 
         Some(self.content.slice(start..end))
+    }
+
+    pub fn get_file_span(&self, span: &FileSpan) -> RopeSlice {
+        let (start, end) = span.get_char_span(&self.content);
+        self.content.slice(start..end)
     }
 }
